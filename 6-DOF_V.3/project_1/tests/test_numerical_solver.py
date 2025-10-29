@@ -1,5 +1,13 @@
 import numpy as np
 
+# At the very top of test_benchmark_pipeline.py
+import sys
+import os
+
+# Get the absolute path to the project root (one level above 'tests/')
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)  # prepend to sys.path so Python finds your packages first
+
 from kinematics.FK_chain import fk_chain
 from kinematics.numerical_solver import numerical_ik_solve
 from kinematics.settings import DH

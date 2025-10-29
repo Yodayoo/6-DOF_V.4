@@ -8,8 +8,10 @@ from scipy.spatial.transform import Rotation as R
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-analytical = np.load("6-DOF_V.3/project_1/data/analytical_results.npy" , allow_pickle=True).item()
-numerical = np.load("6-DOF_V.3/project_1/data/numerical_results.npy" , allow_pickle=True).item()
+path = "6-DOF_V.3/project_1/data/compiled_solutions/"
+
+analytical = np.load(path+"analytical_results_combined.npy" , allow_pickle=True).item()
+numerical = np.load(path+"numerical_results_combined.npy" , allow_pickle=True).item()
 
 analytical_results = np.array(analytical["results"])
 numerical_results = np.array(numerical["results"])
@@ -26,13 +28,16 @@ colors = ['tab:blue', 'tab:orange']
 
 
 def clean(arr):
-    arr = np.ravel(arr.astype(float))
+    arr = np.ravel(arr)
+    arr = np.array(arr, dtype=float)  # force numeric conversion
     return arr[np.isfinite(arr) & (arr > 0)]
 
 def valid_ratio(arr):
+    arr = np.array(arr, dtype=float)  # force numeric conversion
     total = arr.size
     valid = np.count_nonzero(np.isfinite(arr))
     return valid / total if total > 0 else 0
+
 
 def stats(arr):
     if arr.size == 0:
@@ -80,14 +85,10 @@ print(tabulate(table_p, headers=["Metric", "t-statistic", "p-value", "Result"], 
 
 
 
-fig, axs = plt.subplots(3, 2, figsize=(14, 10))
-axs = axs.flatten()
-
 total_points = len(err_analytical)
-plt.suptitle(f'Analytical vs Numerical Solver Performance (Log Scale)\nTotal points measured: {total_points}', fontsize=14)
 
 for i, name in enumerate(metrics):
-    ax = axs[i]
+    plt.figure(figsize=(8, 5))
     raw_a = err_analytical[:, i]
     raw_n = err_numerical[:, i]
 
@@ -95,8 +96,8 @@ for i, name in enumerate(metrics):
     data_n = clean(raw_n)
 
     if len(data_a) == 0 and len(data_n) == 0:
-        ax.set_title(f"{name}\n(no valid data)")
-        ax.axis('off')
+        plt.title(f"{name}\n(no valid data)")
+        plt.axis('off')
         continue
 
     # Determine bins
@@ -109,26 +110,26 @@ for i, name in enumerate(metrics):
         bins = np.logspace(np.log10(data_n.min()), np.log10(data_n.max()), 100)
 
     # Plot histograms
-    h1 = ax.hist(data_a, bins=bins, alpha=0.5, color=colors[0], label='Analytical', edgecolor='black')
-    h2 = ax.hist(data_n, bins=bins, alpha=0.5, color=colors[1], label='Numerical', edgecolor='black')
+    plt.hist(data_a, bins=bins, alpha=0.5, color=colors[0], label='Analytical', edgecolor='black')
+    plt.hist(data_n, bins=bins, alpha=0.5, color=colors[1], label='Numerical', edgecolor='black')
+
+    plt.title(f"{name}\nAnalytical vs Numerical Solver Performance (Linear Scale)\nTotal points measured: {total_points}")
 
     # Log scale for first 4 metrics
-    if i < 3:
-        ax.set_xscale('log')
+    if i < 4:
+        plt.xscale('log')
+        plt.title(f"{name}\nAnalytical vs Numerical Solver Performance (Log Scale)\nTotal points measured: {total_points}")
 
     # Mean lines
     if len(data_a) > 0:
-        ax.axvline(np.mean(data_a), color='blue', linestyle='dashed', linewidth=1)
+        plt.axvline(np.mean(data_a), color='blue', linestyle='dashed', linewidth=1)
     if len(data_n) > 0:
-        ax.axvline(np.mean(data_n), color='orange', linestyle='dashed', linewidth=1)
+        plt.axvline(np.mean(data_n), color='orange', linestyle='dashed', linewidth=1)
 
-    ax.set_title(name)
-    ax.grid(True, linestyle='--', alpha=0.5, which='both')
-    ax.legend(fontsize=8, loc='upper center')
-
-# Hide unused subplot (6th spot)
-for j in range(len(metrics), len(axs)):
-    axs[j].set_visible(False)
-
-plt.tight_layout(rect=[0, 0, 1, 0.9])
-plt.show()
+    #plt.title(f"{name}\nAnalytical vs Numerical Solver Performance (Log Scale)\nTotal points measured: {total_points}")
+    plt.xlabel(name)
+    plt.ylabel("Frequency")
+    plt.grid(True, linestyle='--', alpha=0.5, which='both')
+    plt.legend(fontsize=7, loc='upper left')
+    plt.tight_layout()
+    plt.show()

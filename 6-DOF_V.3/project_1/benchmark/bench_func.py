@@ -4,8 +4,10 @@ import psutil
 import os
 
 from tqdm import tqdm
-from scipy.spatial.transform import Rotation as R
+from datetime import datetime
 from kinematics import fk_chain , DH
+from scipy.spatial.transform import Rotation as R
+
 
 
 def compute_error(Theta_solved, T_true, fk_chain=fk_chain, DH=DH):
@@ -62,8 +64,17 @@ def measure_batch_performance(solver_func, targets, batch_size=100, save_path=No
         results[i:i + len(batch), 4] = cpu_percent
 
     if save_path is not None:
-        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-        np.save(save_path, {"results": results, "thetas": thetas})
-        print(f"\n✅ Saved benchmark results to: {save_path}")
+        # Add a timestamp before the file extension
+        base, ext = os.path.splitext(save_path)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_path_dated = f"{base}_{timestamp}{ext}"
+
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(save_path_dated)), exist_ok=True)
+
+        # Save results with timestamped filename
+        np.save(save_path_dated, {"results": results, "thetas": thetas})
+
+        print(f"\n✅ Saved benchmark results to: {save_path_dated}")
 
     return {"results": results, "thetas": thetas}

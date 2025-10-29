@@ -74,14 +74,10 @@ def dls_step(J, e, lam=1e-3):
 # -----------------------------------------------
 def numerical_ik_solve(
     T_target, dh_parms=DH, q0 = np.zeros(6),
-    max_iters=200, tol=1e-10, lam=1e-3, step=1.0,
+    max_iters=600, tol=1e-10, lam=0.01, step=0.75,
     q_min=None, q_max=None
 ):
-    """
-    Iterative numerical IK (DLS) with joint limits.
-    q_min, q_max: np.ndarray (n,) giving joint angle limits in radians.
-                  If None, defaults to [-pi, pi] for all joints.
-    """
+
     q = q0.copy()
     n = len(dh_parms)
 
