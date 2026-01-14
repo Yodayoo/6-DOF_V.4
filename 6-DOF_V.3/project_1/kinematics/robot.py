@@ -8,7 +8,7 @@ import numpy as np
 from typing import Optional, List, Literal
 
 from .config import RobotConfig, DEFAULT_ROBOT
-from .core import forward_kinematics
+from .core import forward_kinematics, forward_kinematics_batch
 from .solvers import AnalyticalIKSolver, NumericalIKSolver
 from .solvers.ik_solution import IKSolution
 from .utils import error_check
@@ -56,6 +56,29 @@ class Robot:
             T: 4x4 transformation matrix from base to end-effector
         """
         return forward_kinematics(self.dh_params, joint_angles)
+
+    def forward_kinematics_batch(self, joint_angles_batch: np.ndarray) -> np.ndarray:
+        """
+        Compute forward kinematics for multiple configurations (batch operation).
+
+        Efficiently computes FK for a batch of joint configurations.
+        Useful for trajectory planning and workspace analysis.
+
+        Args:
+            joint_angles_batch: MxN array where M is number of configurations,
+                               N is number of joints
+
+        Returns:
+            T_batch: Mx4x4 array of transformation matrices
+
+        Example:
+            >>> robot = Robot()
+            >>> configs = np.array([[0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            ...                      [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]])
+            >>> transforms = robot.forward_kinematics_batch(configs)
+            >>> print(transforms.shape)  # (2, 4, 4)
+        """
+        return forward_kinematics_batch(self.dh_params, joint_angles_batch)
 
     def inverse_kinematics(
         self,
