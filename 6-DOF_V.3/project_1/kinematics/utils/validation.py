@@ -5,9 +5,14 @@ Provides functions to check joint limit violations and workspace reachability.
 """
 
 import numpy as np
+from typing import Optional, Tuple, List, Dict
 
 
-def check_joint_limits(joint_angles, q_min=None, q_max=None):
+def check_joint_limits(
+    joint_angles: np.ndarray,
+    q_min: Optional[np.ndarray] = None,
+    q_max: Optional[np.ndarray] = None
+) -> Tuple[bool, List[int]]:
     """
     Check if joint angles are within specified limits.
 
@@ -35,7 +40,11 @@ def check_joint_limits(joint_angles, q_min=None, q_max=None):
     return len(violations) == 0, violations
 
 
-def clamp_to_limits(joint_angles, q_min=None, q_max=None):
+def clamp_to_limits(
+    joint_angles: np.ndarray,
+    q_min: Optional[np.ndarray] = None,
+    q_max: Optional[np.ndarray] = None
+) -> np.ndarray:
     """
     Clamp joint angles to specified limits.
 
@@ -57,7 +66,11 @@ def clamp_to_limits(joint_angles, q_min=None, q_max=None):
     return np.minimum(np.maximum(joint_angles, q_min), q_max)
 
 
-def check_reachability(target_position, dh_params, safety_margin=0.0):
+def check_reachability(
+    target_position: np.ndarray,
+    dh_params: np.ndarray,
+    safety_margin: float = 0.0
+) -> Tuple[bool, float, float]:
     """
     Fast geometric check if a target position is within workspace.
 
@@ -91,7 +104,11 @@ def check_reachability(target_position, dh_params, safety_margin=0.0):
     return reachable, distance, max_reach
 
 
-def check_reachability_detailed(target_position, dh_params, z_offset=0.0):
+def check_reachability_detailed(
+    target_position: np.ndarray,
+    dh_params: np.ndarray,
+    z_offset: float = 0.0
+) -> Dict[str, any]:
     """
     Detailed reachability check with diagnostic information.
 
@@ -172,7 +189,11 @@ def check_reachability_detailed(target_position, dh_params, z_offset=0.0):
     return result
 
 
-def detect_singularity(joint_angles, dh_params, threshold=0.01):
+def detect_singularity(
+    joint_angles: np.ndarray,
+    dh_params: np.ndarray,
+    threshold: float = 0.01
+) -> Tuple[bool, str, float]:
     """
     Detect if a configuration is near a kinematic singularity.
 

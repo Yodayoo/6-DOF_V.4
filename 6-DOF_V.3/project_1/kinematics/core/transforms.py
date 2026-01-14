@@ -6,9 +6,15 @@ using Denavit-Hartenberg (DH) parameters.
 """
 
 import numpy as np
+from typing import Union
 
 
-def dh_transform(a, alpha, d, theta):
+def dh_transform(
+    a: float,
+    alpha: float,
+    d: float,
+    theta: float
+) -> np.ndarray:
     """
     Compute a 4x4 transformation matrix using Modified DH parameters.
 

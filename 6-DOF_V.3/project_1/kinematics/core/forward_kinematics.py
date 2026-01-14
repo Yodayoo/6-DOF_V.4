@@ -6,10 +6,14 @@ given joint configurations.
 """
 
 import numpy as np
+from typing import Union, Sequence
 from .transforms import dh_transform
 
 
-def forward_kinematics(dh_params, joint_angles):
+def forward_kinematics(
+    dh_params: np.ndarray,
+    joint_angles: Union[np.ndarray, Sequence[float]]
+) -> np.ndarray:
     """
     Compute forward kinematics for a serial manipulator.
 

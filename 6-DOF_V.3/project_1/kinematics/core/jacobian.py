@@ -6,10 +6,14 @@ relating joint velocities to end-effector velocities.
 """
 
 import numpy as np
+from typing import Union, Sequence, Tuple
 from .transforms import dh_transform
 
 
-def geometric_jacobian(dh_params, joint_angles):
+def geometric_jacobian(
+    dh_params: np.ndarray,
+    joint_angles: Union[np.ndarray, Sequence[float]]
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the 6x6 geometric Jacobian for a 6-DOF manipulator.
 

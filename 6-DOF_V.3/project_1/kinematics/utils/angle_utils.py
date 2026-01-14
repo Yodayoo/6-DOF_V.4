@@ -5,9 +5,10 @@ Provides functions for wrapping angles and computing angle distances.
 """
 
 import numpy as np
+from typing import Union
 
 
-def wrap_to_pi(angles):
+def wrap_to_pi(angles: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """
     Wrap angles to [-π, π) interval.
 
@@ -20,7 +21,7 @@ def wrap_to_pi(angles):
     return (angles + np.pi) % (2 * np.pi) - np.pi
 
 
-def wrap_to_2pi(angles):
+def wrap_to_2pi(angles: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """
     Wrap angles to [0, 2π) interval.
 
@@ -33,7 +34,10 @@ def wrap_to_2pi(angles):
     return angles % (2 * np.pi)
 
 
-def angle_distance(angles1, angles2):
+def angle_distance(
+    angles1: Union[float, np.ndarray],
+    angles2: Union[float, np.ndarray]
+) -> float:
     """
     Compute the sum of absolute angle differences between two configurations.
 

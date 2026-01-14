@@ -6,9 +6,10 @@ between transformation matrices.
 """
 
 import numpy as np
+from typing import Tuple
 
 
-def pose_error(T_current, T_target):
+def pose_error(T_current: np.ndarray, T_target: np.ndarray) -> np.ndarray:
     """
     Compute 6D pose error between current and target transformations.
 
@@ -43,7 +44,7 @@ def pose_error(T_current, T_target):
     return np.hstack([ep, eo])
 
 
-def rotation_error_geodesic(R1, R2):
+def rotation_error_geodesic(R1: np.ndarray, R2: np.ndarray) -> float:
     """
     Compute geodesic distance between two rotation matrices on SO(3).
 
@@ -64,7 +65,7 @@ def rotation_error_geodesic(R1, R2):
     return angle
 
 
-def error_check(T_solved, T_true):
+def error_check(T_solved: np.ndarray, T_true: np.ndarray) -> Tuple[float, float]:
     """
     Compute position and rotation errors between two transformation matrices.
 
