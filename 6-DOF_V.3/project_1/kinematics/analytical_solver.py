@@ -65,7 +65,7 @@ def analytical_ik_solve(
                       - np.arctan2(d4*np.sin(theta3),
                                    d2 + d4*np.cos(theta3)))
             if theta1 == theta1_base + np.pi:
-                sols3.append(np.array([theta1, -theta2, -theta3]))
+                sols3.append(np.array([theta1, -theta2, -theta3, 0, 0, 0]))
             else:
                 sols3.append(np.array([theta1, theta2, theta3, 0, 0, 0]))
 
