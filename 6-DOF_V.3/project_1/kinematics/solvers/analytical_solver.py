@@ -5,9 +5,11 @@ Uses geometric decomposition to find closed-form solutions.
 """
 
 import numpy as np
+from typing import List, Optional
 from .base_solver import IKSolver
-from ..core import dh_transform
-from ..utils import wrap_to_pi, angle_distance
+from .ik_solution import IKSolution
+from ..core import dh_transform, forward_kinematics
+from ..utils import wrap_to_pi, angle_distance, error_check
 
 
 class AnalyticalIKSolver(IKSolver):
@@ -142,8 +144,83 @@ class AnalyticalIKSolver(IKSolver):
             return valid_sols[0]
 
     def solve_all(self, T_target, **kwargs):
-        """Return all valid IK solutions."""
-        return self.solve(T_target, return_all=True, **kwargs)
+        """
+        Return all valid IK solutions with quality metrics.
+
+        Args:
+            T_target: 4x4 target transformation matrix
+            **kwargs: Additional solver parameters
+
+        Returns:
+            List of IKSolution objects sorted by error
+        """
+        # Get all raw solutions
+        raw_solutions = self.solve(T_target, return_all=True, **kwargs)
+
+        if not raw_solutions:
+            return []
+
+        # Convert to IKSolution objects with quality metrics
+        ik_solutions = []
+        for i, q in enumerate(raw_solutions):
+            # Compute FK and error
+            T_achieved = forward_kinematics(self.dh_params, q)
+            pos_err, rot_err = error_check(T_achieved, T_target)
+
+            # Determine configuration name
+            config_name = self._get_configuration_name(q, i)
+
+            # Check joint limits
+            is_valid = np.all((q >= self.q_min) & (q <= self.q_max))
+
+            solution = IKSolution(
+                q=q,
+                pos_error=pos_err,
+                rot_error=rot_err,
+                configuration=config_name,
+                is_valid=is_valid,
+                solver_method="analytical",
+                iterations=None
+            )
+            ik_solutions.append(solution)
+
+        # Sort by total error
+        ik_solutions.sort()
+
+        return ik_solutions
+
+    def _get_configuration_name(self, q: np.ndarray, solution_idx: int) -> str:
+        """
+        Generate descriptive name for solution configuration.
+
+        Args:
+            q: Joint configuration
+            solution_idx: Index in solution list
+
+        Returns:
+            Configuration name (e.g., "shoulder_right_elbow_up_wrist_flip")
+        """
+        parts = []
+
+        # Shoulder configuration (theta1)
+        if -np.pi/2 < q[0] <= np.pi/2:
+            parts.append("shoulder_right")
+        else:
+            parts.append("shoulder_left")
+
+        # Elbow configuration (theta3)
+        if q[2] >= 0:
+            parts.append("elbow_up")
+        else:
+            parts.append("elbow_down")
+
+        # Wrist flip (theta5)
+        if abs(q[4]) < np.pi/2:
+            parts.append("wrist_noflip")
+        else:
+            parts.append("wrist_flip")
+
+        return "_".join(parts)
 
     def _fk_first_3_joints(self, sol3):
         """Forward kinematics for the first 3 joints."""

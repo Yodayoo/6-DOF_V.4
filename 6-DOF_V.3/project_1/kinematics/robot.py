@@ -10,6 +10,7 @@ from typing import Optional, List, Literal
 from .config import RobotConfig, DEFAULT_ROBOT
 from .core import forward_kinematics
 from .solvers import AnalyticalIKSolver, NumericalIKSolver
+from .solvers.ik_solution import IKSolution
 from .utils import error_check
 
 
@@ -108,37 +109,110 @@ class Robot:
         self,
         T_target: np.ndarray,
         **kwargs
-    ) -> List[np.ndarray]:
+    ) -> List[IKSolution]:
         """
-        Find all valid IK solutions.
+        Find all valid IK solutions with quality metrics.
 
         Args:
             T_target: 4x4 target transformation matrix
             **kwargs: Additional solver parameters
 
         Returns:
-            solutions: List of valid joint configurations
+            solutions: List of IKSolution objects sorted by error
         """
         return self.analytical_solver.solve_all(T_target, **kwargs)
+
+    def select_best_solution(
+        self,
+        solutions: List[IKSolution],
+        q_current: Optional[np.ndarray] = None,
+        prefer_config: Optional[str] = None
+    ) -> Optional[IKSolution]:
+        """
+        Select best solution from multiple candidates.
+
+        Args:
+            solutions: List of IKSolution objects
+            q_current: Current joint configuration (prefer closest)
+            prefer_config: Preferred configuration name (e.g., "elbow_up")
+
+        Returns:
+            Best IKSolution, or None if no solutions
+        """
+        if not solutions:
+            return None
+
+        # Filter for valid solutions only
+        valid_solutions = [s for s in solutions if s.is_valid]
+        if not valid_solutions:
+            return None
+
+        # If configuration preference specified, filter for it
+        if prefer_config:
+            config_matches = [s for s in valid_solutions
+                            if prefer_config in s.configuration]
+            if config_matches:
+                valid_solutions = config_matches
+
+        # If current configuration provided, select closest
+        if q_current is not None:
+            distances = [s.distance_to(q_current) for s in valid_solutions]
+            best_idx = int(np.argmin(distances))
+            return valid_solutions[best_idx]
+
+        # Otherwise, return most accurate solution
+        return valid_solutions[0]  # Already sorted by error
 
     def validate_solution(
         self,
         joint_angles: np.ndarray,
-        T_target: np.ndarray
-    ) -> tuple[float, float]:
+        T_target: np.ndarray,
+        pos_tol: float = 1e-4,
+        rot_tol: float = 1e-3
+    ) -> tuple[bool, float, float]:
         """
         Validate an IK solution by computing FK and measuring error.
 
         Args:
             joint_angles: Joint configuration to validate
             T_target: Target transformation matrix
+            pos_tol: Position error tolerance (meters)
+            rot_tol: Rotation error tolerance (radians)
 
         Returns:
+            is_valid: Whether solution meets tolerances
             pos_err: Position error (meters)
             rot_err: Rotation error (radians)
         """
         T_achieved = self.forward_kinematics(joint_angles)
-        return error_check(T_achieved, T_target)
+        pos_err, rot_err = error_check(T_achieved, T_target)
+        is_valid = (pos_err < pos_tol) and (rot_err < rot_tol)
+        return is_valid, pos_err, rot_err
+
+    def validate_solutions(
+        self,
+        solutions: List[IKSolution],
+        T_target: np.ndarray,
+        pos_tol: float = 1e-4,
+        rot_tol: float = 1e-3
+    ) -> List[IKSolution]:
+        """
+        Filter solutions to only those meeting accuracy requirements.
+
+        Args:
+            solutions: List of IKSolution objects to validate
+            T_target: Target transformation matrix
+            pos_tol: Position error tolerance (meters)
+            rot_tol: Rotation error tolerance (radians)
+
+        Returns:
+            Filtered list of accurate solutions
+        """
+        accurate_solutions = []
+        for sol in solutions:
+            if sol.pos_error < pos_tol and sol.rot_error < rot_tol:
+                accurate_solutions.append(sol)
+        return accurate_solutions
 
     @property
     def n_joints(self) -> int:

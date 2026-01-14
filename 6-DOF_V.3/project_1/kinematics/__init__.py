@@ -35,6 +35,7 @@ from .core import (
     geometric_jacobian,
 )
 from .solvers import (
+    IKSolution,
     AnalyticalIKSolver,
     NumericalIKSolver,
     analytical_ik_solve,
@@ -50,6 +51,8 @@ from .utils import (
     check_joint_limits,
     clamp_to_limits,
     check_reachability,
+    check_reachability_detailed,
+    detect_singularity,
 )
 
 # Backward compatibility - import from old locations with deprecation warnings
@@ -113,6 +116,7 @@ __all__ = [
     'geometric_jacobian',
 
     # Solvers
+    'IKSolution',
     'AnalyticalIKSolver',
     'NumericalIKSolver',
     'analytical_ik_solve',
@@ -128,6 +132,8 @@ __all__ = [
     'check_joint_limits',
     'clamp_to_limits',
     'check_reachability',
+    'check_reachability_detailed',
+    'detect_singularity',
 ]
 
 __version__ = '3.0.0'
