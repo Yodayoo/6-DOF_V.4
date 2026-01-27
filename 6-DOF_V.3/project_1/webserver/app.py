@@ -1,5 +1,5 @@
 """
-Web server for visualizing 6-DOF robot target poses.
+Web server for visualizing 6-DOF robot target poses and solver results.
 Run with: python app.py
 Then open http://localhost:5000 in your browser.
 """
@@ -18,29 +18,72 @@ from kinematics import fk_chain, DH, analytical_ik_solve, numerical_ik_solve
 
 app = Flask(__name__)
 
-# Global storage for loaded targets
-_targets = None
+# Global storage
+_data = None
+_results_path = os.path.join(PROJECT_DIR, "data", "solver_results_100k.npy")
 _target_path = os.path.join(PROJECT_DIR, "data", "target_archive.npy")
 
 
-def load_targets(max_points=1000):
-    """Load target poses from file, limiting to max_points for performance."""
-    global _targets
-    if os.path.exists(_target_path):
-        all_targets = np.load(_target_path, allow_pickle=True)
-        # Subsample if too many
-        if len(all_targets) > max_points:
-            indices = np.linspace(0, len(all_targets)-1, max_points, dtype=int)
-            _targets = all_targets[indices]
+def load_data(max_display=5000):
+    """Load solver results and targets."""
+    global _data
+
+    # Try to load full results first
+    if os.path.exists(_results_path):
+        print(f"Loading solver results from {_results_path}...")
+        raw = np.load(_results_path, allow_pickle=True).item()
+
+        targets = raw['targets']
+        total = len(targets)
+
+        # Subsample for display
+        if total > max_display:
+            indices = np.linspace(0, total-1, max_display, dtype=int)
         else:
-            _targets = all_targets
-        return len(_targets)
+            indices = np.arange(total)
+
+        _data = {
+            'targets': targets[indices],
+            'analytical_solutions': [raw['analytical_solutions'][i] for i in indices],
+            'analytical_errors': [raw['analytical_errors'][i] for i in indices],
+            'numerical_solutions': [raw['numerical_solutions'][i] for i in indices],
+            'numerical_errors': [raw['numerical_errors'][i] for i in indices],
+            'total_count': total,
+            'display_count': len(indices),
+            'analytical_time': raw.get('analytical_time', 0),
+            'numerical_time': raw.get('numerical_time', 0),
+            'all_analytical_errors': raw['analytical_errors'],
+            'all_numerical_errors': raw['numerical_errors']
+        }
+        return len(indices)
+
+    # Fallback to just targets
+    elif os.path.exists(_target_path):
+        print(f"Loading targets from {_target_path}...")
+        targets = np.load(_target_path, allow_pickle=True)
+        total = len(targets)
+
+        if total > max_display:
+            indices = np.linspace(0, total-1, max_display, dtype=int)
+            targets = targets[indices]
+
+        _data = {
+            'targets': targets,
+            'analytical_solutions': [None] * len(targets),
+            'analytical_errors': [None] * len(targets),
+            'numerical_solutions': [None] * len(targets),
+            'numerical_errors': [None] * len(targets),
+            'total_count': total,
+            'display_count': len(targets)
+        }
+        return len(targets)
+
     return 0
 
 
 def get_robot_frames(thetas):
     """Get all joint frames for visualization."""
-    frames = [np.eye(4)]  # Base frame
+    frames = [np.eye(4)]
     T = np.eye(4)
 
     from kinematics.helper_func import dh_T
@@ -55,135 +98,172 @@ def get_robot_frames(thetas):
 
 @app.route('/')
 def index():
-    """Serve the main visualization page."""
     return render_template('index.html')
 
 
 @app.route('/api/targets')
 def get_targets():
-    """Get all target positions for visualization."""
-    if _targets is None:
-        load_targets()
+    """Get all target positions with error data for visualization."""
+    if _data is None:
+        load_data()
 
-    if _targets is None or len(_targets) == 0:
-        return jsonify({'error': 'No targets loaded', 'positions': []})
+    if _data is None or len(_data['targets']) == 0:
+        return jsonify({'error': 'No data loaded'})
 
-    # Extract positions and orientations
     positions = []
-    orientations = []
+    analytical_errors = []
+    numerical_errors = []
 
-    for T in _targets:
+    for i, T in enumerate(_data['targets']):
         pos = T[:3, 3].tolist()
-        # Extract z-axis of end-effector for orientation arrow
-        z_axis = T[:3, 2].tolist()
         positions.append(pos)
-        orientations.append(z_axis)
+
+        a_err = _data['analytical_errors'][i]
+        n_err = _data['numerical_errors'][i]
+
+        analytical_errors.append(float(a_err) if a_err is not None else None)
+        numerical_errors.append(float(n_err) if n_err is not None else None)
 
     return jsonify({
-        'count': len(positions),
+        'total_count': _data.get('total_count', len(positions)),
+        'display_count': len(positions),
         'positions': positions,
-        'orientations': orientations
+        'analytical_errors': analytical_errors,
+        'numerical_errors': numerical_errors
     })
+
+
+@app.route('/api/stats')
+def get_stats():
+    """Get detailed statistics about solver performance."""
+    if _data is None:
+        load_data()
+
+    if _data is None:
+        return jsonify({'error': 'No data loaded'})
+
+    # Use full error arrays for stats
+    all_a_err = _data.get('all_analytical_errors', _data['analytical_errors'])
+    all_n_err = _data.get('all_numerical_errors', _data['numerical_errors'])
+
+    a_errors = np.array([e for e in all_a_err if e is not None and np.isfinite(e)])
+    n_errors = np.array([e for e in all_n_err if e is not None and np.isfinite(e)])
+
+    positions = np.array([T[:3, 3] for T in _data['targets']])
+
+    stats = {
+        'total_count': _data.get('total_count', len(_data['targets'])),
+        'display_count': _data.get('display_count', len(_data['targets'])),
+        'bounds': {
+            'x': [float(positions[:, 0].min()), float(positions[:, 0].max())],
+            'y': [float(positions[:, 1].min()), float(positions[:, 1].max())],
+            'z': [float(positions[:, 2].min()), float(positions[:, 2].max())]
+        }
+    }
+
+    if len(a_errors) > 0:
+        stats['analytical'] = {
+            'valid': int(len(a_errors)),
+            'mean_error': float(np.mean(a_errors)),
+            'max_error': float(np.max(a_errors)),
+            'under_1um': int(np.sum(a_errors < 1e-6)),
+            'under_1mm': int(np.sum(a_errors < 1e-3)),
+            'time': _data.get('analytical_time', 0)
+        }
+
+    if len(n_errors) > 0:
+        stats['numerical'] = {
+            'valid': int(len(n_errors)),
+            'mean_error': float(np.mean(n_errors)),
+            'max_error': float(np.max(n_errors)),
+            'under_1um': int(np.sum(n_errors < 1e-6)),
+            'under_1mm': int(np.sum(n_errors < 1e-3)),
+            'time': _data.get('numerical_time', 0)
+        }
+
+    return jsonify(stats)
 
 
 @app.route('/api/robot/<int:target_idx>')
 def get_robot_pose(target_idx):
     """Get robot arm configuration for a specific target."""
-    if _targets is None:
-        load_targets()
+    if _data is None:
+        load_data()
 
-    if _targets is None or target_idx >= len(_targets):
+    if _data is None or target_idx >= len(_data['targets']):
         return jsonify({'error': 'Invalid target index'})
 
-    T_target = _targets[target_idx]
-
-    # Solve IK
-    thetas = analytical_ik_solve(T_target)
-    if thetas is None:
-        return jsonify({'error': 'IK failed for this target'})
-
-    # Get all joint frames
-    frames = get_robot_frames(thetas)
-
-    # Extract joint positions
-    joint_positions = [f[:3, 3].tolist() for f in frames]
-
-    # Target position
-    target_pos = T_target[:3, 3].tolist()
-    target_z = T_target[:3, 2].tolist()
-
-    return jsonify({
-        'target_idx': target_idx,
-        'joint_angles': thetas.tolist(),
-        'joint_positions': joint_positions,
-        'target_position': target_pos,
-        'target_orientation': target_z
-    })
-
-
-@app.route('/api/solve', methods=['POST'])
-def solve_ik():
-    """Solve IK for a custom target pose."""
-    data = request.json
-
-    # Build transformation matrix from position and orientation
-    pos = np.array(data.get('position', [2, 0, 2]))
-
-    # Simple target matrix (pointing down)
-    T_target = np.eye(4)
-    T_target[:3, 3] = pos
-
-    # Solve with both methods
-    analytical_sol = analytical_ik_solve(T_target)
-    numerical_sol = numerical_ik_solve(T_target)
+    T_target = _data['targets'][target_idx]
 
     result = {
-        'target_position': pos.tolist()
+        'target_idx': target_idx,
+        'target_position': T_target[:3, 3].tolist()
     }
 
-    if analytical_sol is not None:
-        frames_a = get_robot_frames(analytical_sol)
+    # Get pre-computed analytical solution or solve
+    a_sol = _data['analytical_solutions'][target_idx]
+    if a_sol is None:
+        a_sol = analytical_ik_solve(T_target)
+
+    if a_sol is not None:
+        frames = get_robot_frames(a_sol)
         result['analytical'] = {
-            'angles': analytical_sol.tolist(),
-            'joint_positions': [f[:3, 3].tolist() for f in frames_a]
+            'angles': a_sol.tolist(),
+            'angles_deg': (np.rad2deg(a_sol)).tolist(),
+            'joint_positions': [f[:3, 3].tolist() for f in frames],
+            'error': float(_data['analytical_errors'][target_idx]) if _data['analytical_errors'][target_idx] else None
         }
 
-    if numerical_sol is not None:
-        frames_n = get_robot_frames(numerical_sol)
+    # Get pre-computed numerical solution or solve
+    n_sol = _data['numerical_solutions'][target_idx]
+    if n_sol is None:
+        n_sol = numerical_ik_solve(T_target)
+
+    if n_sol is not None:
+        frames = get_robot_frames(n_sol)
         result['numerical'] = {
-            'angles': numerical_sol.tolist(),
-            'joint_positions': [f[:3, 3].tolist() for f in frames_n]
+            'angles': n_sol.tolist(),
+            'angles_deg': (np.rad2deg(n_sol)).tolist(),
+            'joint_positions': [f[:3, 3].tolist() for f in frames],
+            'error': float(_data['numerical_errors'][target_idx]) if _data['numerical_errors'][target_idx] else None
         }
 
     return jsonify(result)
 
 
-@app.route('/api/stats')
-def get_stats():
-    """Get statistics about loaded targets."""
-    if _targets is None:
-        load_targets()
+@app.route('/api/error_histogram')
+def get_error_histogram():
+    """Get histogram data for error distribution."""
+    if _data is None:
+        load_data()
 
-    if _targets is None:
-        return jsonify({'error': 'No targets loaded'})
+    all_a_err = _data.get('all_analytical_errors', _data['analytical_errors'])
+    all_n_err = _data.get('all_numerical_errors', _data['numerical_errors'])
 
-    positions = np.array([T[:3, 3] for T in _targets])
+    a_errors = np.array([e for e in all_a_err if e is not None and np.isfinite(e) and e > 0])
+    n_errors = np.array([e for e in all_n_err if e is not None and np.isfinite(e) and e > 0])
+
+    # Log-scale bins
+    bins = np.logspace(-16, -1, 50)
+
+    a_hist, _ = np.histogram(a_errors, bins=bins)
+    n_hist, _ = np.histogram(n_errors, bins=bins)
 
     return jsonify({
-        'count': len(_targets),
-        'bounds': {
-            'x': [float(positions[:, 0].min()), float(positions[:, 0].max())],
-            'y': [float(positions[:, 1].min()), float(positions[:, 1].max())],
-            'z': [float(positions[:, 2].min()), float(positions[:, 2].max())]
-        },
-        'centroid': positions.mean(axis=0).tolist()
+        'bins': bins.tolist(),
+        'analytical': a_hist.tolist(),
+        'numerical': n_hist.tolist()
     })
 
 
 if __name__ == '__main__':
-    print("Loading target poses...")
-    count = load_targets(max_points=2000)
-    print(f"Loaded {count} target poses")
+    print("Loading data...")
+    count = load_data(max_display=5000)
+    print(f"Loaded {count} poses for display")
+
+    if _data:
+        print(f"Total targets: {_data.get('total_count', count)}")
+
     print("\nStarting web server...")
     print("Open http://localhost:5000 in your browser")
     app.run(debug=True, host='0.0.0.0', port=5000)

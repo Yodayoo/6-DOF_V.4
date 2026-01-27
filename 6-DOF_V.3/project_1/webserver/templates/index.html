@@ -3,214 +3,234 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>6-DOF Robot Target Pose Visualizer</title>
+    <title>6-DOF IK Solver - 100K Results</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
+            background: #0d1117;
+            color: #c9d1d9;
             min-height: 100vh;
         }
-
         .header {
-            background: #16213e;
-            padding: 20px;
-            text-align: center;
-            border-bottom: 2px solid #0f3460;
+            background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
+            padding: 20px 30px;
+            border-bottom: 1px solid #30363d;
         }
-
-        .header h1 {
-            color: #e94560;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            color: #888;
-        }
-
+        .header h1 { color: #58a6ff; font-size: 24px; }
+        .header p { color: #8b949e; margin-top: 5px; }
         .container {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
             padding: 20px;
-            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
         }
-
-        .main-plot {
-            flex: 2;
-            min-width: 600px;
-            background: #16213e;
-            border-radius: 10px;
-            padding: 15px;
-        }
-
-        .sidebar {
-            flex: 1;
-            min-width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
+        .main-area { display: flex; flex-direction: column; gap: 20px; }
         .panel {
-            background: #16213e;
-            border-radius: 10px;
-            padding: 20px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
         }
-
         .panel h3 {
-            color: #e94560;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #0f3460;
-            padding-bottom: 10px;
+            color: #58a6ff;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #30363d;
         }
-
-        #plot3d {
-            width: 100%;
-            height: 600px;
-        }
-
+        #plot3d { height: 500px; }
+        #histogramPlot { height: 250px; }
         .stats-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
         }
-
-        .stat-item {
-            background: #0f3460;
-            padding: 15px;
-            border-radius: 8px;
+        .stat-card {
+            background: #21262d;
+            border-radius: 6px;
+            padding: 12px;
             text-align: center;
         }
-
-        .stat-item .value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #e94560;
+        .stat-card.highlight { border: 1px solid #58a6ff; }
+        .stat-card .value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #58a6ff;
         }
-
-        .stat-item .label {
-            font-size: 12px;
-            color: #888;
-            margin-top: 5px;
+        .stat-card .label {
+            font-size: 11px;
+            color: #8b949e;
+            margin-top: 4px;
         }
-
-        .controls {
+        .solver-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .solver-card {
+            background: #21262d;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .solver-card h4 {
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .solver-card.analytical h4 { color: #58a6ff; }
+        .solver-card.numerical h4 { color: #f0883e; }
+        .solver-card .metric {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .control-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #888;
-        }
-
-        .control-group input[type="range"] {
-            width: 100%;
-        }
-
-        .control-group input[type="number"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #0f3460;
-            border-radius: 5px;
-            background: #0f3460;
-            color: #eee;
-        }
-
-        button {
-            padding: 12px 20px;
-            background: #e94560;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
-        }
-
-        button:hover {
-            background: #ff6b6b;
-        }
-
-        button:disabled {
-            background: #555;
-            cursor: not-allowed;
-        }
-
-        .joint-angles {
-            font-family: monospace;
-            background: #0f3460;
-            padding: 10px;
-            border-radius: 5px;
+            justify-content: space-between;
             font-size: 12px;
+            padding: 4px 0;
+            border-bottom: 1px solid #30363d;
+        }
+        .solver-card .metric:last-child { border-bottom: none; }
+        .solver-card .metric .val { color: #c9d1d9; font-family: monospace; }
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        .control-row { display: flex; gap: 8px; }
+        button {
+            flex: 1;
+            padding: 10px 16px;
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        button:hover { background: #30363d; border-color: #58a6ff; }
+        button.primary { background: #238636; border-color: #238636; }
+        button.primary:hover { background: #2ea043; }
+        button.active { background: #f85149; border-color: #f85149; }
+        button.active:hover { background: #da3633; }
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+            accent-color: #58a6ff;
+        }
+        .slider-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8b949e;
+        }
+        .joint-angles {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            background: #0d1117;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre;
             overflow-x: auto;
         }
-
+        .color-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
         .loading {
-            text-align: center;
-            padding: 40px;
-            color: #888;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #8b949e;
         }
-
-        .info-text {
-            color: #888;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        #targetSlider {
-            width: 100%;
-        }
-
-        .slider-value {
-            text-align: center;
-            font-size: 18px;
-            color: #e94560;
-            margin-top: 10px;
+        @media (max-width: 1200px) {
+            .container { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>6-DOF Robot Target Pose Visualizer</h1>
-        <p>Interactive 3D visualization of inverse kinematics solutions</p>
+        <h1>6-DOF Inverse Kinematics Solver Results</h1>
+        <p>100,000 target poses - Analytical vs Numerical solver comparison</p>
     </div>
 
     <div class="container">
-        <div class="main-plot">
-            <div id="plot3d">
-                <div class="loading">Loading 3D visualization...</div>
+        <div class="main-area">
+            <div class="panel">
+                <h3>3D Workspace Visualization</h3>
+                <div id="plot3d"><div class="loading">Loading 3D visualization...</div></div>
+                <div class="color-legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #58a6ff;"></div>
+                        <span>Analytical Solution</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f0883e;"></div>
+                        <span>Numerical Solution</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f0c000;"></div>
+                        <span>Robot Base</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Error Distribution (Log Scale)</h3>
+                <div id="histogramPlot"><div class="loading">Loading histogram...</div></div>
             </div>
         </div>
 
         <div class="sidebar">
             <div class="panel">
-                <h3>Statistics</h3>
+                <h3>Benchmark Summary</h3>
                 <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="value" id="targetCount">-</div>
-                        <div class="label">Target Poses</div>
+                    <div class="stat-card highlight">
+                        <div class="value" id="totalTargets">-</div>
+                        <div class="label">Total Targets</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="value" id="currentTarget">-</div>
-                        <div class="label">Selected Target</div>
+                    <div class="stat-card">
+                        <div class="value" id="displayTargets">-</div>
+                        <div class="label">Displayed</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="value" id="xRange">-</div>
-                        <div class="label">X Range (m)</div>
+                    <div class="stat-card">
+                        <div class="value" id="analyticalTime">-</div>
+                        <div class="label">Analytical Time</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="value" id="zRange">-</div>
-                        <div class="label">Z Range (m)</div>
+                    <div class="stat-card">
+                        <div class="value" id="numericalTime">-</div>
+                        <div class="label">Numerical Time</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Solver Comparison</h3>
+                <div class="solver-comparison">
+                    <div class="solver-card analytical">
+                        <h4>Analytical</h4>
+                        <div class="metric"><span>Mean Error</span><span class="val" id="aMeanErr">-</span></div>
+                        <div class="metric"><span>Max Error</span><span class="val" id="aMaxErr">-</span></div>
+                        <div class="metric"><span>&lt;1 μm</span><span class="val" id="aUnder1um">-</span></div>
+                        <div class="metric"><span>&lt;1 mm</span><span class="val" id="aUnder1mm">-</span></div>
+                    </div>
+                    <div class="solver-card numerical">
+                        <h4>Numerical</h4>
+                        <div class="metric"><span>Mean Error</span><span class="val" id="nMeanErr">-</span></div>
+                        <div class="metric"><span>Max Error</span><span class="val" id="nMaxErr">-</span></div>
+                        <div class="metric"><span>&lt;1 μm</span><span class="val" id="nUnder1um">-</span></div>
+                        <div class="metric"><span>&lt;1 mm</span><span class="val" id="nUnder1mm">-</span></div>
                     </div>
                 </div>
             </div>
@@ -218,274 +238,425 @@
             <div class="panel">
                 <h3>Target Selection</h3>
                 <div class="controls">
-                    <div class="control-group">
-                        <label>Select Target Pose</label>
+                    <div>
                         <input type="range" id="targetSlider" min="0" max="100" value="0">
-                        <div class="slider-value">Target #<span id="sliderValue">0</span></div>
+                        <div class="slider-info">
+                            <span>Target #<span id="currentIdx">0</span></span>
+                            <span id="targetError">-</span>
+                        </div>
                     </div>
-                    <button id="showRobotBtn">Show Robot Arm</button>
-                    <button id="randomTargetBtn">Random Target</button>
+                    <div class="control-row">
+                        <button class="primary" id="showRobotBtn">Show Robot</button>
+                        <button id="randomBtn">Random</button>
+                    </div>
+                    <div class="control-row">
+                        <button id="autoCycleBtn">Auto Cycle</button>
+                        <button id="prevBtn">Prev</button>
+                        <button id="nextBtn">Next</button>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #8b949e;">Cycle Speed</label>
+                        <input type="range" id="speedSlider" min="100" max="3000" value="1000">
+                        <div class="slider-info">
+                            <span id="speedLabel">1.0s per target</span>
+                            <span id="cycleStatus">Stopped</span>
+                        </div>
+                    </div>
+                    <div class="control-row">
+                        <button id="togglePointsBtn">Hide All Points</button>
+                    </div>
+                    <div class="control-row">
+                        <button id="resetViewBtn">Reset View</button>
+                        <button id="topViewBtn">Top</button>
+                        <button id="sideViewBtn">Side</button>
+                    </div>
                 </div>
             </div>
 
             <div class="panel">
-                <h3>Joint Angles (rad)</h3>
-                <div class="joint-angles" id="jointAngles">
-                    Select a target to see joint angles
-                </div>
-            </div>
-
-            <div class="panel">
-                <h3>View Controls</h3>
-                <div class="controls">
-                    <button id="resetViewBtn">Reset View</button>
-                    <button id="topViewBtn">Top View</button>
-                    <button id="sideViewBtn">Side View</button>
-                </div>
-            </div>
-
-            <div class="panel">
-                <h3>About</h3>
-                <p class="info-text">
-                    This visualizer shows target end-effector poses for a 6-DOF robot arm.
-                    Each point represents a reachable position in the robot's workspace.
-                    Click "Show Robot Arm" to see the IK solution for the selected target.
-                </p>
+                <h3>Joint Angles</h3>
+                <div class="joint-angles" id="jointAngles">Select a target and click "Show Robot"</div>
             </div>
         </div>
     </div>
 
     <script>
-        let targetData = null;
-        let robotTrace = null;
-        let selectedTargetIdx = 0;
+        let data = null;
+        let stats = null;
+        let selectedIdx = 0;
+        let autoCycleInterval = null;
+        let cycleSpeed = 1000;
+        let isAutoCycling = false;
+        let showAllPoints = true;
 
-        // Initialize the 3D plot
-        async function initPlot() {
-            // Fetch target data
-            const response = await fetch('/api/targets');
-            targetData = await response.json();
+        function formatError(e) {
+            if (e === null || e === undefined) return '-';
+            if (e < 1e-12) return e.toExponential(1);
+            if (e < 1e-6) return (e * 1e9).toFixed(1) + ' nm';
+            if (e < 1e-3) return (e * 1e6).toFixed(1) + ' μm';
+            return (e * 1e3).toFixed(2) + ' mm';
+        }
 
-            if (targetData.error) {
-                document.getElementById('plot3d').innerHTML =
-                    `<div class="loading">Error: ${targetData.error}</div>`;
-                return;
+        function formatTime(t) {
+            if (t < 60) return t.toFixed(1) + 's';
+            return (t / 60).toFixed(1) + ' min';
+        }
+
+        async function init() {
+            // Load targets
+            const targetRes = await fetch('/api/targets');
+            data = await targetRes.json();
+
+            // Load stats
+            const statsRes = await fetch('/api/stats');
+            stats = await statsRes.json();
+
+            updateStats();
+            render3D();
+            renderHistogram();
+
+            document.getElementById('targetSlider').max = data.display_count - 1;
+        }
+
+        function updateStats() {
+            document.getElementById('totalTargets').textContent = stats.total_count.toLocaleString();
+            document.getElementById('displayTargets').textContent = stats.display_count.toLocaleString();
+
+            if (stats.analytical) {
+                document.getElementById('analyticalTime').textContent = formatTime(stats.analytical.time);
+                document.getElementById('aMeanErr').textContent = formatError(stats.analytical.mean_error);
+                document.getElementById('aMaxErr').textContent = formatError(stats.analytical.max_error);
+                document.getElementById('aUnder1um').textContent = stats.analytical.under_1um.toLocaleString();
+                document.getElementById('aUnder1mm').textContent = stats.analytical.under_1mm.toLocaleString();
             }
 
-            // Update stats
-            document.getElementById('targetCount').textContent = targetData.count;
-            document.getElementById('targetSlider').max = targetData.count - 1;
-
-            // Fetch additional stats
-            const statsResponse = await fetch('/api/stats');
-            const stats = await statsResponse.json();
-
-            if (!stats.error) {
-                document.getElementById('xRange').textContent =
-                    `${stats.bounds.x[0].toFixed(1)} - ${stats.bounds.x[1].toFixed(1)}`;
-                document.getElementById('zRange').textContent =
-                    `${stats.bounds.z[0].toFixed(1)} - ${stats.bounds.z[1].toFixed(1)}`;
+            if (stats.numerical) {
+                document.getElementById('numericalTime').textContent = formatTime(stats.numerical.time);
+                document.getElementById('nMeanErr').textContent = formatError(stats.numerical.mean_error);
+                document.getElementById('nMaxErr').textContent = formatError(stats.numerical.max_error);
+                document.getElementById('nUnder1um').textContent = stats.numerical.under_1um.toLocaleString();
+                document.getElementById('nUnder1mm').textContent = stats.numerical.under_1mm.toLocaleString();
             }
+        }
 
-            // Extract coordinates
-            const x = targetData.positions.map(p => p[0]);
-            const y = targetData.positions.map(p => p[1]);
-            const z = targetData.positions.map(p => p[2]);
+        function render3D() {
+            const x = data.positions.map(p => p[0]);
+            const y = data.positions.map(p => p[1]);
+            const z = data.positions.map(p => p[2]);
 
-            // Create scatter plot of all targets
-            const targetsTrace = {
+            // Color by numerical error (log scale)
+            const colors = data.numerical_errors.map(e =>
+                e ? Math.log10(Math.max(e, 1e-16)) : -16
+            );
+
+            const targetTrace = {
                 type: 'scatter3d',
                 mode: 'markers',
-                name: 'Target Poses',
-                x: x,
-                y: y,
-                z: z,
+                name: 'Targets',
+                x, y, z,
                 marker: {
-                    size: 3,
-                    color: z,
+                    size: 2,
+                    color: colors,
                     colorscale: 'Viridis',
-                    opacity: 0.6
+                    cmin: -15,
+                    cmax: -3,
+                    colorbar: {
+                        title: 'Log₁₀(Error)',
+                        tickvals: [-15, -12, -9, -6, -3],
+                        ticktext: ['1e-15', '1e-12', '1e-9', '1e-6', '1e-3']
+                    },
+                    opacity: 0.7
                 },
-                hovertemplate:
-                    'X: %{x:.3f}m<br>Y: %{y:.3f}m<br>Z: %{z:.3f}m<extra></extra>'
+                hovertemplate: 'X: %{x:.3f}m<br>Y: %{y:.3f}m<br>Z: %{z:.3f}m<extra></extra>'
             };
 
-            // Selected target marker
             const selectedTrace = {
                 type: 'scatter3d',
                 mode: 'markers',
                 name: 'Selected',
-                x: [x[0]],
-                y: [y[0]],
-                z: [z[0]],
-                marker: {
-                    size: 12,
-                    color: '#e94560',
-                    symbol: 'diamond'
-                }
+                x: [x[0]], y: [y[0]], z: [z[0]],
+                marker: { size: 10, color: '#ffffff', symbol: 'diamond' }
             };
 
-            // Robot base marker
             const baseTrace = {
                 type: 'scatter3d',
                 mode: 'markers',
-                name: 'Robot Base',
-                x: [0],
-                y: [0],
-                z: [0],
-                marker: {
-                    size: 15,
-                    color: '#ffcc00',
-                    symbol: 'square'
-                }
+                name: 'Base',
+                x: [0], y: [0], z: [0],
+                marker: { size: 12, color: '#f0c000', symbol: 'square' }
             };
 
             const layout = {
-                paper_bgcolor: '#16213e',
-                plot_bgcolor: '#16213e',
-                font: { color: '#eee' },
+                paper_bgcolor: '#161b22',
+                plot_bgcolor: '#161b22',
+                font: { color: '#c9d1d9' },
                 scene: {
-                    xaxis: {
-                        title: 'X (m)',
-                        gridcolor: '#0f3460',
-                        zerolinecolor: '#e94560'
-                    },
-                    yaxis: {
-                        title: 'Y (m)',
-                        gridcolor: '#0f3460',
-                        zerolinecolor: '#e94560'
-                    },
-                    zaxis: {
-                        title: 'Z (m)',
-                        gridcolor: '#0f3460',
-                        zerolinecolor: '#e94560'
-                    },
+                    xaxis: { title: 'X (m)', gridcolor: '#30363d', zerolinecolor: '#58a6ff' },
+                    yaxis: { title: 'Y (m)', gridcolor: '#30363d', zerolinecolor: '#58a6ff' },
+                    zaxis: { title: 'Z (m)', gridcolor: '#30363d', zerolinecolor: '#58a6ff' },
                     aspectmode: 'data',
-                    camera: {
-                        eye: { x: 1.5, y: 1.5, z: 1.2 }
-                    }
+                    camera: { eye: { x: 1.5, y: 1.5, z: 1 } }
                 },
                 margin: { l: 0, r: 0, t: 0, b: 0 },
-                showlegend: true,
-                legend: {
-                    x: 0,
-                    y: 1,
-                    bgcolor: 'rgba(22, 33, 62, 0.8)'
-                }
+                showlegend: false
             };
 
-            Plotly.newPlot('plot3d', [targetsTrace, selectedTrace, baseTrace], layout);
+            Plotly.newPlot('plot3d', [targetTrace, selectedTrace, baseTrace], layout);
         }
 
-        // Update selected target
-        function updateSelectedTarget(idx) {
-            selectedTargetIdx = idx;
-            document.getElementById('currentTarget').textContent = idx;
-            document.getElementById('sliderValue').textContent = idx;
+        async function renderHistogram() {
+            const res = await fetch('/api/error_histogram');
+            const hist = await res.json();
 
-            if (targetData && targetData.positions[idx]) {
-                const pos = targetData.positions[idx];
-                Plotly.restyle('plot3d', {
-                    x: [[pos[0]]],
-                    y: [[pos[1]]],
-                    z: [[pos[2]]]
-                }, 1);  // Update trace index 1 (selected marker)
-            }
+            const binCenters = hist.bins.slice(0, -1).map((b, i) =>
+                Math.sqrt(b * hist.bins[i + 1])
+            );
+
+            const analyticalTrace = {
+                type: 'bar',
+                name: 'Analytical',
+                x: binCenters,
+                y: hist.analytical,
+                marker: { color: '#58a6ff', opacity: 0.7 }
+            };
+
+            const numericalTrace = {
+                type: 'bar',
+                name: 'Numerical',
+                x: binCenters,
+                y: hist.numerical,
+                marker: { color: '#f0883e', opacity: 0.7 }
+            };
+
+            const layout = {
+                paper_bgcolor: '#161b22',
+                plot_bgcolor: '#161b22',
+                font: { color: '#c9d1d9', size: 10 },
+                xaxis: {
+                    type: 'log',
+                    title: 'Position Error (m)',
+                    gridcolor: '#30363d'
+                },
+                yaxis: {
+                    title: 'Count',
+                    gridcolor: '#30363d'
+                },
+                barmode: 'overlay',
+                margin: { l: 50, r: 20, t: 10, b: 40 },
+                legend: { x: 0.7, y: 0.95 }
+            };
+
+            Plotly.newPlot('histogramPlot', [analyticalTrace, numericalTrace], layout);
         }
 
-        // Show robot arm for selected target
-        async function showRobotArm() {
+        function updateSelection(idx) {
+            selectedIdx = idx;
+            document.getElementById('currentIdx').textContent = idx;
+
+            const nErr = data.numerical_errors[idx];
+            document.getElementById('targetError').textContent =
+                'Num. Error: ' + formatError(nErr);
+
+            const pos = data.positions[idx];
+            Plotly.restyle('plot3d', { x: [[pos[0]]], y: [[pos[1]]], z: [[pos[2]]] }, 1);
+        }
+
+        async function showRobot() {
             const btn = document.getElementById('showRobotBtn');
             btn.disabled = true;
             btn.textContent = 'Loading...';
 
             try {
-                const response = await fetch(`/api/robot/${selectedTargetIdx}`);
-                const data = await response.json();
-
-                if (data.error) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
+                const res = await fetch(`/api/robot/${selectedIdx}`);
+                const robot = await res.json();
 
                 // Update joint angles display
-                const angles = data.joint_angles.map((a, i) =>
-                    `J${i+1}: ${(a * 180 / Math.PI).toFixed(2)}°`
-                ).join('\n');
-                document.getElementById('jointAngles').textContent = angles;
+                let anglesText = '';
+                if (robot.analytical) {
+                    anglesText += 'ANALYTICAL (err: ' + formatError(robot.analytical.error) + ')\n';
+                    robot.analytical.angles_deg.forEach((a, i) => {
+                        anglesText += `  J${i+1}: ${a.toFixed(2)}°\n`;
+                    });
+                }
+                if (robot.numerical) {
+                    anglesText += '\nNUMERICAL (err: ' + formatError(robot.numerical.error) + ')\n';
+                    robot.numerical.angles_deg.forEach((a, i) => {
+                        anglesText += `  J${i+1}: ${a.toFixed(2)}°\n`;
+                    });
+                }
+                document.getElementById('jointAngles').textContent = anglesText;
 
-                // Create robot arm trace
-                const joints = data.joint_positions;
-                const robotTrace = {
-                    type: 'scatter3d',
-                    mode: 'lines+markers',
-                    name: 'Robot Arm',
-                    x: joints.map(j => j[0]),
-                    y: joints.map(j => j[1]),
-                    z: joints.map(j => j[2]),
-                    line: {
-                        width: 8,
-                        color: '#00ff88'
-                    },
-                    marker: {
-                        size: 8,
-                        color: '#00ff88'
-                    }
-                };
-
-                // Update or add robot trace
+                // Remove old robot traces
                 const plotDiv = document.getElementById('plot3d');
-                if (plotDiv.data.length > 3) {
+                while (plotDiv.data.length > 3) {
                     Plotly.deleteTraces('plot3d', 3);
                 }
-                Plotly.addTraces('plot3d', robotTrace);
 
+                // Add analytical robot arm
+                if (robot.analytical) {
+                    const joints = robot.analytical.joint_positions;
+                    Plotly.addTraces('plot3d', {
+                        type: 'scatter3d',
+                        mode: 'lines+markers',
+                        name: 'Analytical',
+                        x: joints.map(j => j[0]),
+                        y: joints.map(j => j[1]),
+                        z: joints.map(j => j[2]),
+                        line: { width: 8, color: '#58a6ff' },
+                        marker: { size: 6, color: '#58a6ff' }
+                    });
+                }
+
+                // Add numerical robot arm (offset slightly for visibility)
+                if (robot.numerical) {
+                    const joints = robot.numerical.joint_positions;
+                    Plotly.addTraces('plot3d', {
+                        type: 'scatter3d',
+                        mode: 'lines+markers',
+                        name: 'Numerical',
+                        x: joints.map(j => j[0] + 0.02),
+                        y: joints.map(j => j[1] + 0.02),
+                        z: joints.map(j => j[2]),
+                        line: { width: 6, color: '#f0883e' },
+                        marker: { size: 5, color: '#f0883e' }
+                    });
+                }
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Show Robot Arm';
+                btn.textContent = 'Show Robot';
             }
         }
 
-        // View controls
-        function resetView() {
-            Plotly.relayout('plot3d', {
-                'scene.camera': { eye: { x: 1.5, y: 1.5, z: 1.2 } }
-            });
+        // Auto-cycle functions
+        async function cycleToNext() {
+            const nextIdx = (selectedIdx + 1) % data.display_count;
+            document.getElementById('targetSlider').value = nextIdx;
+            updateSelection(nextIdx);
+            await showRobot();
         }
 
-        function topView() {
-            Plotly.relayout('plot3d', {
-                'scene.camera': { eye: { x: 0, y: 0, z: 3 } }
-            });
+        function startAutoCycle() {
+            if (autoCycleInterval) return;
+            isAutoCycling = true;
+
+            const btn = document.getElementById('autoCycleBtn');
+            btn.textContent = 'Stop Cycle';
+            btn.classList.add('active');
+            document.getElementById('cycleStatus').textContent = 'Running...';
+
+            // Show robot for current target immediately
+            showRobot();
+
+            autoCycleInterval = setInterval(cycleToNext, cycleSpeed);
         }
 
-        function sideView() {
-            Plotly.relayout('plot3d', {
-                'scene.camera': { eye: { x: 3, y: 0, z: 0.5 } }
-            });
-        }
-
-        function randomTarget() {
-            if (targetData) {
-                const idx = Math.floor(Math.random() * targetData.count);
-                document.getElementById('targetSlider').value = idx;
-                updateSelectedTarget(idx);
+        function stopAutoCycle() {
+            if (autoCycleInterval) {
+                clearInterval(autoCycleInterval);
+                autoCycleInterval = null;
             }
+            isAutoCycling = false;
+
+            const btn = document.getElementById('autoCycleBtn');
+            btn.textContent = 'Auto Cycle';
+            btn.classList.remove('active');
+            document.getElementById('cycleStatus').textContent = 'Stopped';
+        }
+
+        function toggleAutoCycle() {
+            if (isAutoCycling) {
+                stopAutoCycle();
+            } else {
+                startAutoCycle();
+            }
+        }
+
+        function updateCycleSpeed(speed) {
+            cycleSpeed = speed;
+            const seconds = (speed / 1000).toFixed(1);
+            document.getElementById('speedLabel').textContent = `${seconds}s per target`;
+
+            // If currently cycling, restart with new speed
+            if (isAutoCycling) {
+                clearInterval(autoCycleInterval);
+                autoCycleInterval = setInterval(cycleToNext, cycleSpeed);
+            }
+        }
+
+        function goToNext() {
+            const nextIdx = (selectedIdx + 1) % data.display_count;
+            document.getElementById('targetSlider').value = nextIdx;
+            updateSelection(nextIdx);
+            showRobot();
+        }
+
+        function goToPrev() {
+            const prevIdx = (selectedIdx - 1 + data.display_count) % data.display_count;
+            document.getElementById('targetSlider').value = prevIdx;
+            updateSelection(prevIdx);
+            showRobot();
         }
 
         // Event listeners
-        document.getElementById('targetSlider').addEventListener('input', (e) => {
-            updateSelectedTarget(parseInt(e.target.value));
+        document.getElementById('targetSlider').addEventListener('input', e => {
+            updateSelection(parseInt(e.target.value));
+            if (isAutoCycling) stopAutoCycle();
+        });
+        document.getElementById('showRobotBtn').addEventListener('click', showRobot);
+        document.getElementById('randomBtn').addEventListener('click', () => {
+            if (isAutoCycling) stopAutoCycle();
+            const idx = Math.floor(Math.random() * data.display_count);
+            document.getElementById('targetSlider').value = idx;
+            updateSelection(idx);
+            showRobot();
+        });
+        document.getElementById('autoCycleBtn').addEventListener('click', toggleAutoCycle);
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (isAutoCycling) stopAutoCycle();
+            goToPrev();
+        });
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (isAutoCycling) stopAutoCycle();
+            goToNext();
+        });
+        document.getElementById('speedSlider').addEventListener('input', e => {
+            updateCycleSpeed(parseInt(e.target.value));
+        });
+        document.getElementById('togglePointsBtn').addEventListener('click', () => {
+            showAllPoints = !showAllPoints;
+            const btn = document.getElementById('togglePointsBtn');
+            btn.textContent = showAllPoints ? 'Hide All Points' : 'Show All Points';
+            btn.classList.toggle('active', !showAllPoints);
+            // Toggle visibility of the first trace (all targets)
+            Plotly.restyle('plot3d', { visible: showAllPoints }, 0);
+        });
+        document.getElementById('resetViewBtn').addEventListener('click', () => {
+            Plotly.relayout('plot3d', { 'scene.camera': { eye: { x: 1.5, y: 1.5, z: 1 } } });
+        });
+        document.getElementById('topViewBtn').addEventListener('click', () => {
+            Plotly.relayout('plot3d', { 'scene.camera': { eye: { x: 0, y: 0, z: 2.5 } } });
+        });
+        document.getElementById('sideViewBtn').addEventListener('click', () => {
+            Plotly.relayout('plot3d', { 'scene.camera': { eye: { x: 2.5, y: 0, z: 0.5 } } });
         });
 
-        document.getElementById('showRobotBtn').addEventListener('click', showRobotArm);
-        document.getElementById('resetViewBtn').addEventListener('click', resetView);
-        document.getElementById('topViewBtn').addEventListener('click', topView);
-        document.getElementById('sideViewBtn').addEventListener('click', sideView);
-        document.getElementById('randomTargetBtn').addEventListener('click', randomTarget);
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.key === ' ' || e.key === 'Space') {
+                e.preventDefault();
+                toggleAutoCycle();
+            } else if (e.key === 'ArrowRight') {
+                if (isAutoCycling) stopAutoCycle();
+                goToNext();
+            } else if (e.key === 'ArrowLeft') {
+                if (isAutoCycling) stopAutoCycle();
+                goToPrev();
+            } else if (e.key === 'p' || e.key === 'P') {
+                document.getElementById('togglePointsBtn').click();
+            }
+        });
 
-        // Initialize on load
-        window.addEventListener('load', initPlot);
+        window.addEventListener('load', init);
     </script>
 </body>
 </html>
