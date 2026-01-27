@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6-DOF Robot Target Pose Visualizer</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: #16213e;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #0f3460;
+        }
+
+        .header h1 {
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #888;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .main-plot {
+            flex: 2;
+            min-width: 600px;
+            background: #16213e;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .sidebar {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .panel h3 {
+            color: #e94560;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 10px;
+        }
+
+        #plot3d {
+            width: 100%;
+            height: 600px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e94560;
+        }
+
+        .stat-item .label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #888;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+        }
+
+        .control-group input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #0f3460;
+            border-radius: 5px;
+            background: #0f3460;
+            color: #eee;
+        }
+
+        button {
+            padding: 12px 20px;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #ff6b6b;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .joint-angles {
+            font-family: monospace;
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .info-text {
+            color: #888;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        #targetSlider {
+            width: 100%;
+        }
+
+        .slider-value {
+            text-align: center;
+            font-size: 18px;
+            color: #e94560;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>6-DOF Robot Target Pose Visualizer</h1>
+        <p>Interactive 3D visualization of inverse kinematics solutions</p>
+    </div>
+
+    <div class="container">
+        <div class="main-plot">
+            <div id="plot3d">
+                <div class="loading">Loading 3D visualization...</div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="panel">
+                <h3>Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="value" id="targetCount">-</div>
+                        <div class="label">Target Poses</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="currentTarget">-</div>
+                        <div class="label">Selected Target</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="xRange">-</div>
+                        <div class="label">X Range (m)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="zRange">-</div>
+                        <div class="label">Z Range (m)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Target Selection</h3>
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Select Target Pose</label>
+                        <input type="range" id="targetSlider" min="0" max="100" value="0">
+                        <div class="slider-value">Target #<span id="sliderValue">0</span></div>
+                    </div>
+                    <button id="showRobotBtn">Show Robot Arm</button>
+                    <button id="randomTargetBtn">Random Target</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Joint Angles (rad)</h3>
+                <div class="joint-angles" id="jointAngles">
+                    Select a target to see joint angles
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>View Controls</h3>
+                <div class="controls">
+                    <button id="resetViewBtn">Reset View</button>
+                    <button id="topViewBtn">Top View</button>
+                    <button id="sideViewBtn">Side View</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>About</h3>
+                <p class="info-text">
+                    This visualizer shows target end-effector poses for a 6-DOF robot arm.
+                    Each point represents a reachable position in the robot's workspace.
+                    Click "Show Robot Arm" to see the IK solution for the selected target.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let targetData = null;
+        let robotTrace = null;
+        let selectedTargetIdx = 0;
+
+        // Initialize the 3D plot
+        async function initPlot() {
+            // Fetch target data
+            const response = await fetch('/api/targets');
+            targetData = await response.json();
+
+            if (targetData.error) {
+                document.getElementById('plot3d').innerHTML =
+                    `<div class="loading">Error: ${targetData.error}</div>`;
+                return;
+            }
+
+            // Update stats
+            document.getElementById('targetCount').textContent = targetData.count;
+            document.getElementById('targetSlider').max = targetData.count - 1;
+
+            // Fetch additional stats
+            const statsResponse = await fetch('/api/stats');
+            const stats = await statsResponse.json();
+
+            if (!stats.error) {
+                document.getElementById('xRange').textContent =
+                    `${stats.bounds.x[0].toFixed(1)} - ${stats.bounds.x[1].toFixed(1)}`;
+                document.getElementById('zRange').textContent =
+                    `${stats.bounds.z[0].toFixed(1)} - ${stats.bounds.z[1].toFixed(1)}`;
+            }
+
+            // Extract coordinates
+            const x = targetData.positions.map(p => p[0]);
+            const y = targetData.positions.map(p => p[1]);
+            const z = targetData.positions.map(p => p[2]);
+
+            // Create scatter plot of all targets
+            const targetsTrace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                name: 'Target Poses',
+                x: x,
+                y: y,
+                z: z,
+                marker: {
+                    size: 3,
+                    color: z,
+                    colorscale: 'Viridis',
+                    opacity: 0.6
+                },
+                hovertemplate:
+                    'X: %{x:.3f}m<br>Y: %{y:.3f}m<br>Z: %{z:.3f}m<extra></extra>'
+            };
+
+            // Selected target marker
+            const selectedTrace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                name: 'Selected',
+                x: [x[0]],
+                y: [y[0]],
+                z: [z[0]],
+                marker: {
+                    size: 12,
+                    color: '#e94560',
+                    symbol: 'diamond'
+                }
+            };
+
+            // Robot base marker
+            const baseTrace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                name: 'Robot Base',
+                x: [0],
+                y: [0],
+                z: [0],
+                marker: {
+                    size: 15,
+                    color: '#ffcc00',
+                    symbol: 'square'
+                }
+            };
+
+            const layout = {
+                paper_bgcolor: '#16213e',
+                plot_bgcolor: '#16213e',
+                font: { color: '#eee' },
+                scene: {
+                    xaxis: {
+                        title: 'X (m)',
+                        gridcolor: '#0f3460',
+                        zerolinecolor: '#e94560'
+                    },
+                    yaxis: {
+                        title: 'Y (m)',
+                        gridcolor: '#0f3460',
+                        zerolinecolor: '#e94560'
+                    },
+                    zaxis: {
+                        title: 'Z (m)',
+                        gridcolor: '#0f3460',
+                        zerolinecolor: '#e94560'
+                    },
+                    aspectmode: 'data',
+                    camera: {
+                        eye: { x: 1.5, y: 1.5, z: 1.2 }
+                    }
+                },
+                margin: { l: 0, r: 0, t: 0, b: 0 },
+                showlegend: true,
+                legend: {
+                    x: 0,
+                    y: 1,
+                    bgcolor: 'rgba(22, 33, 62, 0.8)'
+                }
+            };
+
+            Plotly.newPlot('plot3d', [targetsTrace, selectedTrace, baseTrace], layout);
+        }
+
+        // Update selected target
+        function updateSelectedTarget(idx) {
+            selectedTargetIdx = idx;
+            document.getElementById('currentTarget').textContent = idx;
+            document.getElementById('sliderValue').textContent = idx;
+
+            if (targetData && targetData.positions[idx]) {
+                const pos = targetData.positions[idx];
+                Plotly.restyle('plot3d', {
+                    x: [[pos[0]]],
+                    y: [[pos[1]]],
+                    z: [[pos[2]]]
+                }, 1);  // Update trace index 1 (selected marker)
+            }
+        }
+
+        // Show robot arm for selected target
+        async function showRobotArm() {
+            const btn = document.getElementById('showRobotBtn');
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`/api/robot/${selectedTargetIdx}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+
+                // Update joint angles display
+                const angles = data.joint_angles.map((a, i) =>
+                    `J${i+1}: ${(a * 180 / Math.PI).toFixed(2)}°`
+                ).join('\n');
+                document.getElementById('jointAngles').textContent = angles;
+
+                // Create robot arm trace
+                const joints = data.joint_positions;
+                const robotTrace = {
+                    type: 'scatter3d',
+                    mode: 'lines+markers',
+                    name: 'Robot Arm',
+                    x: joints.map(j => j[0]),
+                    y: joints.map(j => j[1]),
+                    z: joints.map(j => j[2]),
+                    line: {
+                        width: 8,
+                        color: '#00ff88'
+                    },
+                    marker: {
+                        size: 8,
+                        color: '#00ff88'
+                    }
+                };
+
+                // Update or add robot trace
+                const plotDiv = document.getElementById('plot3d');
+                if (plotDiv.data.length > 3) {
+                    Plotly.deleteTraces('plot3d', 3);
+                }
+                Plotly.addTraces('plot3d', robotTrace);
+
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Show Robot Arm';
+            }
+        }
+
+        // View controls
+        function resetView() {
+            Plotly.relayout('plot3d', {
+                'scene.camera': { eye: { x: 1.5, y: 1.5, z: 1.2 } }
+            });
+        }
+
+        function topView() {
+            Plotly.relayout('plot3d', {
+                'scene.camera': { eye: { x: 0, y: 0, z: 3 } }
+            });
+        }
+
+        function sideView() {
+            Plotly.relayout('plot3d', {
+                'scene.camera': { eye: { x: 3, y: 0, z: 0.5 } }
+            });
+        }
+
+        function randomTarget() {
+            if (targetData) {
+                const idx = Math.floor(Math.random() * targetData.count);
+                document.getElementById('targetSlider').value = idx;
+                updateSelectedTarget(idx);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('targetSlider').addEventListener('input', (e) => {
+            updateSelectedTarget(parseInt(e.target.value));
+        });
+
+        document.getElementById('showRobotBtn').addEventListener('click', showRobotArm);
+        document.getElementById('resetViewBtn').addEventListener('click', resetView);
+        document.getElementById('topViewBtn').addEventListener('click', topView);
+        document.getElementById('sideViewBtn').addEventListener('click', sideView);
+        document.getElementById('randomTargetBtn').addEventListener('click', randomTarget);
+
+        // Initialize on load
+        window.addEventListener('load', initPlot);
+    </script>
+</body>
+</html>
