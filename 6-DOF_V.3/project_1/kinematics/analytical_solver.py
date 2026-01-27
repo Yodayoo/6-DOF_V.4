@@ -64,8 +64,10 @@ def analytical_ik_solve(
             theta2 = (np.arctan2(Z_2d, X_2d) - np.pi/2
                       - np.arctan2(d4*np.sin(theta3),
                                    d2 + d4*np.cos(theta3)))
-            if theta1 == theta1_base + np.pi:
-                sols3.append(np.array([theta1, -theta2, -theta3]))
+            # Use tolerance-based comparison instead of == for floats
+            # Consistent 6-element array structure for all branches
+            if np.isclose(theta1, theta1_base + np.pi):
+                sols3.append(np.array([theta1, -theta2, -theta3, 0, 0, 0]))
             else:
                 sols3.append(np.array([theta1, theta2, theta3, 0, 0, 0]))
 
