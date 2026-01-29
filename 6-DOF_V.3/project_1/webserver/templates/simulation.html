@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6-DOF Robot - Trajectory Simulation</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
+            padding: 20px 30px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { color: #58a6ff; font-size: 24px; }
+        .header p { color: #8b949e; margin-top: 5px; }
+        .nav-links { display: flex; gap: 15px; }
+        .nav-links a {
+            color: #58a6ff;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .nav-links a:hover { background: #21262d; border-color: #58a6ff; }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .panel h3 {
+            color: #58a6ff;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #30363d;
+        }
+        #simPlot { height: 600px; }
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        .control-row { display: flex; gap: 8px; }
+        button {
+            flex: 1;
+            padding: 10px 16px;
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        button:hover { background: #30363d; border-color: #58a6ff; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.primary { background: #238636; border-color: #238636; }
+        button.primary:hover { background: #2ea043; }
+        button.danger { background: #da3633; border-color: #da3633; }
+        button.danger:hover { background: #f85149; }
+        button.active { background: #58a6ff; border-color: #58a6ff; color: #0d1117; }
+        .status-panel {
+            background: #21262d;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #30363d;
+        }
+        .status-row:last-child { border-bottom: none; }
+        .status-row .label { color: #8b949e; }
+        .status-row .value { font-family: monospace; }
+        .status-row .value.analytical { color: #58a6ff; }
+        .status-row .value.numerical { color: #f0883e; }
+        .error-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .error-card {
+            background: #21262d;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+        .error-card.analytical { border-left: 3px solid #58a6ff; }
+        .error-card.numerical { border-left: 3px solid #f0883e; }
+        .error-card .title {
+            font-size: 12px;
+            color: #8b949e;
+            margin-bottom: 4px;
+        }
+        .error-card .value {
+            font-size: 18px;
+            font-weight: 600;
+            font-family: monospace;
+        }
+        .error-card.analytical .value { color: #58a6ff; }
+        .error-card.numerical .value { color: #f0883e; }
+        .color-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+            accent-color: #58a6ff;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8b949e;
+        }
+        .target-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #21262d;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .target-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .target-item:hover { background: #30363d; }
+        .target-item.active { background: #58a6ff; color: #0d1117; }
+        .target-item .pos { font-family: monospace; }
+        @media (max-width: 1100px) {
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>Trajectory Simulation</h1>
+            <p>Watch both solvers track targets in real-time</p>
+        </div>
+        <div class="nav-links">
+            <a href="/">Benchmark Results</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h3>3D Trajectory Visualization</h3>
+            <div id="simPlot"></div>
+            <div class="color-legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #58a6ff;"></div>
+                    <span>Analytical Solver</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f0883e;"></div>
+                    <span>Numerical Solver</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f0c000;"></div>
+                    <span>Robot Base</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff6b6b;"></div>
+                    <span>Target Point</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #8b949e;"></div>
+                    <span>Previous Targets</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="panel">
+                <h3>Simulation Controls</h3>
+                <div class="controls">
+                    <button class="primary" id="addTargetBtn">Add Target</button>
+                    <button id="autoRunBtn">Auto Run</button>
+                    <div>
+                        <div class="slider-label">
+                            <span>Animation Speed</span>
+                            <span id="speedValue">50ms</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="10" max="200" value="50">
+                    </div>
+                    <div class="control-row">
+                        <button id="resetBtn" class="danger">Reset</button>
+                        <button id="clearOldBtn">Clear Old</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Current Status</h3>
+                <div class="status-panel">
+                    <div class="status-row">
+                        <span class="label">Targets Generated</span>
+                        <span class="value" id="targetCount">0</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="label">Current Target</span>
+                        <span class="value" id="currentTarget">-</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="label">Animation Step</span>
+                        <span class="value" id="animStep">-</span>
+                    </div>
+                </div>
+                <div class="error-display">
+                    <div class="error-card analytical">
+                        <div class="title">Analytical Error</div>
+                        <div class="value" id="analyticalError">-</div>
+                    </div>
+                    <div class="error-card numerical">
+                        <div class="title">Numerical Error</div>
+                        <div class="value" id="numericalError">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Target History</h3>
+                <div class="target-list" id="targetList">
+                    <div style="color: #8b949e; text-align: center; padding: 20px;">
+                        No targets yet. Click "Add Target" to begin.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let targets = [];
+        let currentTargetIdx = -1;
+        let isAnimating = false;
+        let autoRunning = false;
+        let autoRunInterval = null;
+        let animationSpeed = 50;
+        let currentTrajectory = null;
+        let currentStep = 0;
+
+        // Initialize plot
+        function initPlot() {
+            const baseTrace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                name: 'Base',
+                x: [0], y: [0], z: [0],
+                marker: { size: 12, color: '#f0c000', symbol: 'square' }
+            };
+
+            const analyticalArmTrace = {
+                type: 'scatter3d',
+                mode: 'lines+markers',
+                name: 'Analytical',
+                x: [0], y: [0], z: [0],
+                line: { width: 8, color: '#58a6ff' },
+                marker: { size: 6, color: '#58a6ff' }
+            };
+
+            const numericalArmTrace = {
+                type: 'scatter3d',
+                mode: 'lines+markers',
+                name: 'Numerical',
+                x: [0], y: [0], z: [0],
+                line: { width: 6, color: '#f0883e' },
+                marker: { size: 5, color: '#f0883e' }
+            };
+
+            const targetTrace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                name: 'Current Target',
+                x: [], y: [], z: [],
+                marker: { size: 14, color: '#ff6b6b', symbol: 'diamond' }
+            };
+
+            const historyTrace = {
+                type: 'scatter3d',
+                mode: 'markers+lines',
+                name: 'Target History',
+                x: [], y: [], z: [],
+                line: { width: 2, color: '#8b949e', dash: 'dot' },
+                marker: { size: 6, color: '#8b949e' }
+            };
+
+            const layout = {
+                paper_bgcolor: '#161b22',
+                plot_bgcolor: '#161b22',
+                font: { color: '#c9d1d9' },
+                scene: {
+                    xaxis: { title: 'X (m)', gridcolor: '#30363d', zerolinecolor: '#58a6ff', range: [-4, 6] },
+                    yaxis: { title: 'Y (m)', gridcolor: '#30363d', zerolinecolor: '#58a6ff', range: [-4, 6] },
+                    zaxis: { title: 'Z (m)', gridcolor: '#30363d', zerolinecolor: '#58a6ff', range: [-4, 6] },
+                    aspectmode: 'cube',
+                    camera: { eye: { x: 1.5, y: 1.5, z: 1 } }
+                },
+                margin: { l: 0, r: 0, t: 0, b: 0 },
+                showlegend: false
+            };
+
+            Plotly.newPlot('simPlot', [baseTrace, analyticalArmTrace, numericalArmTrace, targetTrace, historyTrace], layout);
+        }
+
+        function formatError(e) {
+            if (e === null || e === undefined) return '-';
+            if (e < 1e-12) return e.toExponential(1);
+            if (e < 1e-6) return (e * 1e9).toFixed(1) + ' nm';
+            if (e < 1e-3) return (e * 1e6).toFixed(1) + ' um';
+            return (e * 1e3).toFixed(2) + ' mm';
+        }
+
+        function updateRobotArms(analyticalPositions, numericalPositions) {
+            if (analyticalPositions && analyticalPositions.length > 0) {
+                Plotly.restyle('simPlot', {
+                    x: [analyticalPositions.map(p => p[0])],
+                    y: [analyticalPositions.map(p => p[1])],
+                    z: [analyticalPositions.map(p => p[2])]
+                }, 1);
+            }
+
+            if (numericalPositions && numericalPositions.length > 0) {
+                // Offset numerical arm slightly for visibility when overlapping
+                Plotly.restyle('simPlot', {
+                    x: [numericalPositions.map(p => p[0] + 0.02)],
+                    y: [numericalPositions.map(p => p[1] + 0.02)],
+                    z: [numericalPositions.map(p => p[2])]
+                }, 2);
+            }
+        }
+
+        function updateTargets() {
+            // Update current target
+            if (currentTargetIdx >= 0 && currentTargetIdx < targets.length) {
+                const t = targets[currentTargetIdx];
+                Plotly.restyle('simPlot', {
+                    x: [[t[0]]],
+                    y: [[t[1]]],
+                    z: [[t[2]]]
+                }, 3);
+            }
+
+            // Update history (all targets)
+            if (targets.length > 0) {
+                Plotly.restyle('simPlot', {
+                    x: [targets.map(t => t[0])],
+                    y: [targets.map(t => t[1])],
+                    z: [targets.map(t => t[2])]
+                }, 4);
+            }
+
+            // Update target list
+            const listEl = document.getElementById('targetList');
+            if (targets.length === 0) {
+                listEl.innerHTML = '<div style="color: #8b949e; text-align: center; padding: 20px;">No targets yet. Click "Add Target" to begin.</div>';
+            } else {
+                listEl.innerHTML = targets.map((t, i) => `
+                    <div class="target-item ${i === currentTargetIdx ? 'active' : ''}" onclick="selectTarget(${i})">
+                        <span>Target ${i + 1}</span>
+                        <span class="pos">(${t[0].toFixed(2)}, ${t[1].toFixed(2)}, ${t[2].toFixed(2)})</span>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('targetCount').textContent = targets.length;
+            document.getElementById('currentTarget').textContent = currentTargetIdx >= 0 ? `#${currentTargetIdx + 1}` : '-';
+        }
+
+        function selectTarget(idx) {
+            if (isAnimating) return;
+            currentTargetIdx = idx;
+            updateTargets();
+            animateToTarget(idx);
+        }
+
+        async function addTarget() {
+            document.getElementById('addTargetBtn').disabled = true;
+            document.getElementById('addTargetBtn').textContent = 'Generating...';
+
+            try {
+                const res = await fetch('/api/sim/add_target', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.target_position) {
+                    targets.push(data.target_position);
+                    currentTargetIdx = data.target_idx;
+                    updateTargets();
+
+                    document.getElementById('analyticalError').textContent = formatError(data.analytical_error);
+                    document.getElementById('numericalError').textContent = formatError(data.numerical_error);
+
+                    // Animate to new target
+                    await animateToTarget(currentTargetIdx);
+                }
+            } finally {
+                document.getElementById('addTargetBtn').disabled = false;
+                document.getElementById('addTargetBtn').textContent = 'Add Target';
+            }
+        }
+
+        async function animateToTarget(targetIdx) {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            const res = await fetch(`/api/sim/trajectory/${targetIdx}`);
+            const data = await res.json();
+
+            if (data.error) {
+                console.error(data.error);
+                isAnimating = false;
+                return;
+            }
+
+            currentTrajectory = data;
+            const numSteps = data.num_steps;
+            const analyticalTraj = data.analytical_trajectory || [];
+            const numericalTraj = data.numerical_trajectory || [];
+
+            for (let step = 0; step < numSteps; step++) {
+                currentStep = step;
+                document.getElementById('animStep').textContent = `${step + 1}/${numSteps}`;
+
+                const aPos = analyticalTraj[step]?.joint_positions;
+                const nPos = numericalTraj[step]?.joint_positions;
+
+                updateRobotArms(aPos, nPos);
+
+                await new Promise(resolve => setTimeout(resolve, animationSpeed));
+            }
+
+            document.getElementById('analyticalError').textContent = formatError(data.analytical_error);
+            document.getElementById('numericalError').textContent = formatError(data.numerical_error);
+
+            isAnimating = false;
+        }
+
+        async function resetSimulation() {
+            if (autoRunning) toggleAutoRun();
+
+            await fetch('/api/sim/reset', { method: 'POST' });
+            targets = [];
+            currentTargetIdx = -1;
+            currentTrajectory = null;
+            currentStep = 0;
+
+            // Fetch actual robot state to get real FK positions
+            const stateRes = await fetch('/api/sim/state');
+            const state = await stateRes.json();
+
+            // Use actual FK-computed joint positions
+            const analyticalPos = state.analytical_positions || [];
+            const numericalPos = state.numerical_positions || [];
+
+            updateRobotArms(analyticalPos, numericalPos);
+
+            // Clear targets from plot
+            Plotly.restyle('simPlot', { x: [[]], y: [[]], z: [[]] }, 3);
+            Plotly.restyle('simPlot', { x: [[]], y: [[]], z: [[]] }, 4);
+
+            updateTargets();
+            document.getElementById('analyticalError').textContent = '-';
+            document.getElementById('numericalError').textContent = '-';
+            document.getElementById('animStep').textContent = '-';
+        }
+
+        async function clearOldTargets() {
+            await fetch('/api/sim/clear_old', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keep: 3 })
+            });
+
+            // Refresh state
+            const res = await fetch('/api/sim/state');
+            const state = await res.json();
+            targets = state.targets;
+            currentTargetIdx = state.current_target_idx;
+            updateTargets();
+        }
+
+        function toggleAutoRun() {
+            autoRunning = !autoRunning;
+            const btn = document.getElementById('autoRunBtn');
+
+            if (autoRunning) {
+                btn.textContent = 'Stop Auto';
+                btn.classList.add('active');
+                autoRunInterval = setInterval(async () => {
+                    if (!isAnimating) {
+                        await addTarget();
+                    }
+                }, 2000 + animationSpeed * 20);
+            } else {
+                btn.textContent = 'Auto Run';
+                btn.classList.remove('active');
+                if (autoRunInterval) {
+                    clearInterval(autoRunInterval);
+                    autoRunInterval = null;
+                }
+            }
+        }
+
+        // Event listeners
+        document.getElementById('addTargetBtn').addEventListener('click', addTarget);
+        document.getElementById('autoRunBtn').addEventListener('click', toggleAutoRun);
+        document.getElementById('resetBtn').addEventListener('click', resetSimulation);
+        document.getElementById('clearOldBtn').addEventListener('click', clearOldTargets);
+
+        document.getElementById('speedSlider').addEventListener('input', e => {
+            animationSpeed = parseInt(e.target.value);
+            document.getElementById('speedValue').textContent = animationSpeed + 'ms';
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.key === ' ' || e.key === 'Space') {
+                e.preventDefault();
+                if (!isAnimating) addTarget();
+            } else if (e.key === 'a' || e.key === 'A') {
+                toggleAutoRun();
+            } else if (e.key === 'r' || e.key === 'R') {
+                resetSimulation();
+            }
+        });
+
+        // Initialize
+        window.addEventListener('load', async () => {
+            initPlot();
+
+            // Reset and fetch actual robot state
+            await fetch('/api/sim/reset', { method: 'POST' });
+            const stateRes = await fetch('/api/sim/state');
+            const state = await stateRes.json();
+
+            // Display actual robot starting position from FK
+            const analyticalPos = state.analytical_positions || [];
+            const numericalPos = state.numerical_positions || [];
+            updateRobotArms(analyticalPos, numericalPos);
+
+            updateTargets();
+        });
+    </script>
+</body>
+</html>

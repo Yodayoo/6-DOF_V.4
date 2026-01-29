@@ -68,7 +68,7 @@ def _solve_from_initial(T_target, dh_params, q0, max_iters, tol, q_min, q_max):
     """
     Single-start iterative IK with adaptive damping.
 
-    Returns: (solution, final_error, converged)
+    Returns: (solution, final_error, converged, iterations, final_jacobian)
     """
     q = q0.copy()
 
@@ -85,12 +85,15 @@ def _solve_from_initial(T_target, dh_params, q0, max_iters, tol, q_min, q_max):
     # Track best solution
     best_q = q.copy()
     best_err = np.inf
+    best_J = None
 
     # Stall detection
     stall_count = 0
     stall_threshold = 20
 
+    iterations = 0
     for k in range(max_iters):
+        iterations = k + 1
         J, T = geometric_jacobian(dh_params, q)
         e = pose_error(T, T_target)
         err_norm = norm(e)
@@ -99,13 +102,14 @@ def _solve_from_initial(T_target, dh_params, q0, max_iters, tol, q_min, q_max):
         if err_norm < best_err:
             best_err = err_norm
             best_q = q.copy()
+            best_J = J.copy()
             stall_count = 0
         else:
             stall_count += 1
 
         # Check convergence
         if err_norm < tol:
-            return wrap_to_pi(q), err_norm, True
+            return wrap_to_pi(q), err_norm, True, iterations, J
 
         # Early termination if stuck
         if stall_count > stall_threshold:
@@ -138,7 +142,7 @@ def _solve_from_initial(T_target, dh_params, q0, max_iters, tol, q_min, q_max):
             if stall_count > stall_threshold // 2:
                 q = q_new
 
-    return wrap_to_pi(best_q), best_err, best_err < tol
+    return wrap_to_pi(best_q), best_err, best_err < tol, iterations, best_J
 
 
 # -----------------------------------------------
@@ -205,7 +209,7 @@ def numerical_ik_solve(
 
     # Try each initial guess
     for q_init in initial_guesses:
-        sol, err, converged = _solve_from_initial(
+        sol, err, converged, _, _ = _solve_from_initial(
             T_target, dh_params, q_init,
             max_iters, tol, q_min, q_max
         )
@@ -219,6 +223,100 @@ def numerical_ik_solve(
             return sol
 
     return overall_best_q if overall_best_q is not None else wrap_to_pi(q0)
+
+
+def numerical_ik_solve_detailed(
+    T_target, dh_params=DH, q0=None,
+    max_iters=300, tol=1e-6,
+    q_min=None, q_max=None,
+    num_restarts=3
+):
+    """
+    Iterative IK solver that returns detailed metrics for benchmarking.
+
+    Returns:
+        dict with:
+            - 'solution': Joint angles (best found)
+            - 'converged': Whether tolerance was achieved
+            - 'iterations': Total iterations used
+            - 'restarts': Number of restarts attempted
+            - 'final_error': Final pose error norm
+            - 'jacobian': Final Jacobian matrix
+            - 'manipulability': Yoshikawa manipulability index
+    """
+    n = len(dh_params)
+
+    # Default limits
+    if q_min is None:
+        q_min = -np.pi * np.ones(n)
+    else:
+        q_min = np.asarray(q_min)
+    if q_max is None:
+        q_max = np.pi * np.ones(n)
+    else:
+        q_max = np.asarray(q_max)
+
+    # Default initial guess
+    if q0 is None:
+        q0 = np.zeros(n)
+    else:
+        q0 = np.asarray(q0, dtype=float)
+
+    # Track overall best solution
+    overall_best_q = None
+    overall_best_err = np.inf
+    overall_best_J = None
+    total_iterations = 0
+    restarts_used = 0
+
+    # Try from provided initial guess first
+    initial_guesses = [q0]
+
+    # Add strategic restarts
+    if num_restarts > 1:
+        if not np.allclose(q0, np.zeros(n)):
+            initial_guesses.append(np.zeros(n))
+        for _ in range(num_restarts - len(initial_guesses)):
+            q_rand = np.random.uniform(q_min, q_max)
+            initial_guesses.append(q_rand)
+
+    # Try each initial guess
+    converged = False
+    for q_init in initial_guesses:
+        restarts_used += 1
+        sol, err, conv, iters, J = _solve_from_initial(
+            T_target, dh_params, q_init,
+            max_iters, tol, q_min, q_max
+        )
+        total_iterations += iters
+
+        if err < overall_best_err:
+            overall_best_err = err
+            overall_best_q = sol
+            overall_best_J = J
+
+        if conv:
+            converged = True
+            break
+
+    # Compute manipulability index
+    manipulability = 0.0
+    if overall_best_J is not None:
+        try:
+            JJt = overall_best_J @ overall_best_J.T
+            manipulability = np.sqrt(max(0, np.linalg.det(JJt)))
+        except:
+            manipulability = 0.0
+
+    return {
+        'solution': overall_best_q if overall_best_q is not None else wrap_to_pi(q0),
+        'converged': converged,
+        'iterations': total_iterations,
+        'restarts': restarts_used,
+        'final_error': overall_best_err,
+        'jacobian': overall_best_J,
+        'manipulability': manipulability
+    }
 
 
 # -----------------------------------------------
@@ -242,7 +340,7 @@ def numerical_ik_solve_fast(
     if q0 is None:
         q0 = np.zeros(n)
 
-    sol, _, _ = _solve_from_initial(
+    sol, _, _, _, _ = _solve_from_initial(
         T_target, dh_params, np.asarray(q0, dtype=float),
         max_iters, tol, np.asarray(q_min), np.asarray(q_max)
     )

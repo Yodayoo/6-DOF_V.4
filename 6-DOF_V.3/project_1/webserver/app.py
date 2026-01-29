@@ -15,11 +15,13 @@ PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
 from kinematics import fk_chain, DH, analytical_ik_solve, numerical_ik_solve
+from simulation import TrajectorySimulator
 
 app = Flask(__name__)
 
 # Global storage
 _data = None
+_simulator = TrajectorySimulator(interpolation_steps=15)
 _results_path = os.path.join(PROJECT_DIR, "data", "solver_results_100k.npy")
 _target_path = os.path.join(PROJECT_DIR, "data", "target_archive.npy")
 
@@ -254,6 +256,51 @@ def get_error_histogram():
         'analytical': a_hist.tolist(),
         'numerical': n_hist.tolist()
     })
+
+
+# ============================================
+# Trajectory Simulation API
+# ============================================
+
+@app.route('/simulation')
+def simulation_page():
+    """Serve the simulation page."""
+    return render_template('simulation.html')
+
+
+@app.route('/api/sim/reset', methods=['POST'])
+def sim_reset():
+    """Reset the simulation to initial state."""
+    _simulator.reset()
+    return jsonify({'status': 'ok', 'message': 'Simulation reset'})
+
+
+@app.route('/api/sim/state')
+def sim_state():
+    """Get current simulation state."""
+    return jsonify(_simulator.get_current_state())
+
+
+@app.route('/api/sim/add_target', methods=['POST'])
+def sim_add_target():
+    """Generate and add a new target point."""
+    result = _simulator.add_new_target()
+    return jsonify(result)
+
+
+@app.route('/api/sim/trajectory/<int:target_idx>')
+def sim_trajectory(target_idx):
+    """Get interpolated trajectory for moving to a target."""
+    result = _simulator.get_movement_trajectory(target_idx)
+    return jsonify(result)
+
+
+@app.route('/api/sim/clear_old', methods=['POST'])
+def sim_clear_old():
+    """Clear old targets, keeping only recent ones."""
+    keep = request.json.get('keep', 3) if request.json else 3
+    _simulator.clear_old_targets(keep_last=keep)
+    return jsonify({'status': 'ok', 'remaining': len(_simulator.targets)})
 
 
 if __name__ == '__main__':

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(git commit:*)",
+      "Bash(python:*)",
+      "Bash(git push:*)",
+      "Bash(pip install:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(ls -la \"d:\\\\Projects\\\\6-DOF_V.3\\\\6-DOF_V.3\\\\project_1\\\\data\\\\analytical_solutions\"\" 2>/dev/null || dir \"d:Projects6-DOF_V.36-DOF_V.3project_1dataanalytical_solutions \")",
+      "Bash(ls -la \"d:\\\\Projects\\\\6-DOF_V.3\\\\6-DOF_V.3\\\\project_1\\\\data\\\\numerical_solutions\"\" 2>/dev/null || dir \"d:Projects6-DOF_V.36-DOF_V.3project_1datanumerical_solutions \")"
+    ]
+  }
+}

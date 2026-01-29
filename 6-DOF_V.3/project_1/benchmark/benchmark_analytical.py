@@ -20,16 +20,22 @@ targets = np.load(targets_path, allow_pickle=True)
 # Output path (timestamp will be appended by measure_batch_performance)
 output_path = os.path.join(DATA_DIR, "analytical_solutions", "analytical_results.npy")
 
-# Run benchmark
+# Run comprehensive benchmark
 data = measure_batch_performance(
     analytical_ik_solve,
     targets,
     batch_size=1_000,
-    save_path=output_path
+    save_path=output_path,
+    solver_type="analytical"
 )
 
-# Use returned data directly (no need to reload from file)
-print("Results shape:", data["results"].shape)  # (n_points, 5)
-print("Thetas shape:", data["thetas"].shape)    # (n_points, 6)
+# Print extended results info
+print("\n--- Data Arrays ---")
+print(f"Results shape:      {data['results'].shape}")
+print(f"Thetas shape:       {data['thetas'].shape}")
+print(f"Success array:      {data['success'].shape}")
+print(f"Manipulability:     {data['manipulability'].shape}")
+print(f"Workspace regions:  {len(data['workspace_regions'])} entries")
+
 if data["save_path"]:
-    print(f"Saved to: {data['save_path']}")
+    print(f"\nSaved to: {data['save_path']}")
