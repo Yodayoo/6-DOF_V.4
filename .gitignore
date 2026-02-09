@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+
+# Large data files (exceed GitHub 100MB limit)
+*.npy
+
+# OS files
+.DS_Store
+Thumbs.db
