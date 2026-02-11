@@ -1,0 +1,443 @@
+================================================================================
+CODE ARCHITECTURE SUMMARY - 6-DOF ROBOT IK SOLVER FRAMEWORK
+Outline for Lab Report
+================================================================================
+
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+The project implements and benchmarks two inverse kinematics (IK) solvers
+for a 6-DOF (6 Degrees of Freedom) robotic arm:
+  - Analytical solver (closed-form geometric decomposition)
+  - Numerical solver (Damped Least Squares with adaptive damping)
+
+The framework includes target generation, benchmarking, statistical analysis,
+visualization, and trajectory simulation.
+
+
+================================================================================
+2. DIRECTORY STRUCTURE
+================================================================================
+
+project_1/
+  kinematics/                  Core kinematics and IK solvers
+    settings.py                  Robot configuration (DH params, joint limits)
+    FK_chain.py                  Forward kinematics implementation
+    analytical_solver.py         Closed-form IK solver
+    numerical_solver.py          Iterative IK solver (LM-style)
+    helper_func.py               DH transformation utilities
+
+  benchmark/                   Performance benchmarking framework
+    bench_func.py                Core benchmarking (5 metrics per target)
+    benchmark_analytical.py      Runs analytical solver benchmark
+    benchmark_numerical.py       Runs numerical solver benchmark
+
+  analysis/                    Statistical comparison pipeline
+    solver_comparison.py         Welch's t-test, Mann-Whitney U, Cohen's d
+    plot_comparison.py           Plotly visualization of results
+
+  target_gen/                  Target pose generation
+    generate_targets.py          FK-based random reachable target generation
+
+  simulation/                  Trajectory simulation
+    trajectory_sim.py            Joint-space interpolation between targets
+
+  webserver/                   Flask web server (3D visualization)
+    app.py                       API endpoints and data serving
+
+  tests/                       Unit tests (pytest)
+  data/                        Stored results, reports, plots
+
+
+================================================================================
+3. ROBOT CONFIGURATION
+================================================================================
+
+3.1 Denavit-Hartenberg Parameters
+---------------------------------
+Joint | a (m)  | alpha (rad) | d (m)  | theta0 (rad)
+------|--------|-------------|--------|-------------
+  1   |  0.00  |   pi/2      |  1.00  |   0.00
+  2   |  2.50  |   0.00      |  0.00  |   pi/2
+  3   |  0.00  |   pi/2      |  0.00  |   pi/2
+  4   |  0.00  |  -pi/2      |  2.50  |   0.00
+  5   |  0.00  |   pi/2      |  0.00  |   0.00
+  6   |  0.00  |   0.00      |  0.50  |   0.00
+
+3.2 Robot Dimensions
+--------------------
+  - Base height (d1):    1.00 m
+  - Upper arm (a2):      2.50 m
+  - Forearm (d4):        2.50 m
+  - Tool offset (d6):    0.50 m
+  - Maximum reach:       5.00 m
+
+3.3 Joint Limits
+----------------
+Joint | q_min (rad) | q_max (rad)
+------|-------------|------------
+  1   |    -pi      |    +pi
+  2   |   -pi/2     |   +pi/2
+  3   |    -pi      |    +pi
+  4   |    -pi      |    +pi
+  5   |   -pi/2     |   +pi/2
+  6   |    -pi      |    +pi
+
+3.4 DH Transformation Matrix
+-----------------------------
+Each joint contributes a 4x4 homogeneous transformation:
+
+T_i = [ cos(th)  -sin(th)*cos(al)   sin(th)*sin(al)   a*cos(th) ]
+      [ sin(th)   cos(th)*cos(al)  -cos(th)*sin(al)   a*sin(th) ]
+      [   0          sin(al)           cos(al)            d      ]
+      [   0            0                 0                 1      ]
+
+where th = theta0 + theta_i, al = alpha, a = a_i, d = d_i.
+
+
+================================================================================
+4. FORWARD KINEMATICS
+================================================================================
+
+Function: fk_chain(DH, thetas)
+
+Algorithm:
+  1. Initialize T = I_4 (4x4 identity matrix)
+  2. For each joint i = 1..6:
+     - Extract DH parameters: a_i, alpha_i, d_i, theta0_i
+     - Build T_i = dh_T(a_i, alpha_i, d_i, theta0_i + thetas_i)
+     - Accumulate: T = T * T_i
+  3. Return T (4x4 end-effector transformation matrix)
+
+The final T encodes:
+  - Position:    T[:3, 3] = [x, y, z] in meters
+  - Orientation: T[:3, :3] = 3x3 rotation matrix
+
+
+================================================================================
+5. ANALYTICAL IK SOLVER (CLOSED-FORM)
+================================================================================
+
+Function: analytical_ik_solve(T_target)
+
+Two-stage geometric decomposition producing up to 8 candidate solutions.
+
+5.1 Stage 1: Shoulder + Elbow (Joints 1-3)
+-------------------------------------------
+Step 1: Extract target position p and z-axis from T_target.
+
+Step 2: Compute wrist center position:
+  p_wrist = p_target - d6 * z_target
+  (where d6 = 0.50 m is the tool offset)
+
+Step 3: Joint 1 - Base rotation:
+  theta1 = atan2(y_wrist, x_wrist) + offset
+  Two candidates: offset in {0, pi} (front-facing and back-facing)
+
+Step 4: 2D arm plane problem:
+  r_xy = sqrt(x_wrist^2 + y_wrist^2)  (horizontal distance)
+  z_2d = z_wrist - d1                   (vertical from joint 2)
+  dis  = sqrt(r_xy^2 + z_2d^2)          (distance to wrist center)
+
+Step 5: Reachability check:
+  Valid if: |d2 - d4| <= dis <= d2 + d4
+  (where d2 = 2.50 m, d4 = 2.50 m)
+
+Step 6: Joint 3 - Elbow angle via law of cosines:
+  cos(theta3) = (dis^2 - d2^2 - d4^2) / (2 * d2 * d4)
+  theta3 = +/- acos(cos_theta3)  (elbow-up and elbow-down)
+
+Step 7: Joint 2 - Shoulder angle:
+  k1 = d2 + d4 * cos(theta3)
+  k2 = d4 * sin(theta3)
+  theta2 = atan2(z_2d, r_xy) - atan2(k2, k1) - pi/2
+
+Result: Up to 4 candidate (theta1, theta2, theta3) configurations.
+
+5.2 Stage 2: Wrist Orientation (Joints 4-6)
+--------------------------------------------
+For each valid (theta1, theta2, theta3):
+
+Step 1: Compute FK to joint 3: R_03 = FK(DH[0:3], [th1, th2, th3])[:3,:3]
+
+Step 2: Required wrist rotation:
+  R_wrist = R_03^T * R_target
+
+Step 3: Extract Euler angles from R_wrist:
+  theta5 = acos(R_wrist[2,2])     (wrist bend)
+
+  Non-singular case (|sin(theta5)| > 1e-9):
+    theta4 = atan2(R_wrist[1,2], R_wrist[0,2])
+    theta6 = atan2(R_wrist[2,1], -R_wrist[2,0])
+    Two solutions: primary and flipped (theta4+pi, -theta5, theta6+pi)
+
+  Singular case (gimbal lock, |sin(theta5)| <= 1e-9):
+    theta4 and theta6 share a degree of freedom
+    Split combined angle equally between them
+
+Result: Up to 8 total candidate solutions (4 x 2).
+
+5.3 Post-Processing
+--------------------
+  - Normalize all angles to [-pi, pi]
+  - Filter by joint limits
+  - Select closest to current configuration (if provided)
+  - Fallback: clip to limits if no valid solution found
+
+
+================================================================================
+6. NUMERICAL IK SOLVER (ITERATIVE)
+================================================================================
+
+Function: numerical_ik_solve(T_target)
+
+Damped Least Squares (DLS) with adaptive damping and multi-restart.
+
+6.1 Geometric Jacobian
+-----------------------
+Function: geometric_jacobian(DH, q) -> J (6x6 matrix)
+
+For each joint i:
+  J[0:3, i] = z_i x (p_ee - p_i)    (linear velocity contribution)
+  J[3:6, i] = z_i                     (angular velocity contribution)
+
+where z_i = joint axis, p_i = joint origin, p_ee = end-effector position.
+
+6.2 Pose Error (6D)
+--------------------
+  Position error:  e_p = p_target - p_current         (3D, meters)
+  Rotation error:  e_o = theta * axis                  (3D, axis-angle, radians)
+    where R_err = R_target * R_current^T
+          theta = acos((trace(R_err) - 1) / 2)
+          axis  = extracted from skew-symmetric part
+
+  Combined: e = [e_p; e_o]  (6D vector)
+
+6.3 DLS Step
+-------------
+  dq = J^T * (J * J^T + lambda^2 * I)^(-1) * e
+
+  lambda = damping factor (regularization to handle singularities)
+
+6.4 Iteration Loop (per restart)
+---------------------------------
+Parameters:
+  max_iters = 300, tol = 1e-6
+  lambda in [1e-6, 10.0], initial = 0.01
+  step_size in [0.1, 1.5], initial = 1.0
+  stall_threshold = 20 iterations without improvement
+
+For each iteration:
+  1. Compute J and e, error_norm = ||e||
+  2. Check convergence: if error_norm < tol, return success
+  3. Check stall: if no improvement for 20 iters, break
+  4. Compute step: dq = DLS_step(J, e, lambda)
+  5. Update: q_new = q + step_size * dq
+  6. Apply constraints: wrap to [-pi, pi], clip to joint limits
+  7. Adaptive control:
+     - If error decreased: reduce lambda (*0.7), increase step (*1.1)
+     - If error increased: increase lambda (*2.0), reduce step (*0.5)
+
+6.5 Multi-Restart Strategy
+---------------------------
+  - Try initial guess q0 (or zeros)
+  - Add up to num_restarts=3 random initial configs from U[q_min, q_max]
+  - Early exit on first converged solution
+  - Otherwise return best solution across all restarts
+
+
+================================================================================
+7. BENCHMARKING FRAMEWORK
+================================================================================
+
+Function: measure_batch_performance(solver_func, targets, batch_size, ...)
+
+7.1 Five Core Metrics (per target)
+-----------------------------------
+  1. Position error (meters) - Euclidean distance: ||p_target - p_solved||
+  2. Rotation error (radians) - Axis-angle magnitude of R_target * R_solved^T
+  3. Computation time (seconds) - Wall clock time per solve
+  4. Memory delta (MB) - RSS change per batch (process-level)
+  5. CPU utilization (%) - process_time / wall_time * 100 (per target)
+
+7.2 Extended Metrics
+---------------------
+  - Success rate: pos_err < 1e-3 m AND rot_err < 1e-2 rad
+  - Joint limit compliance: all joints within [q_min, q_max]
+  - Manipulability index: sqrt(det(J * J^T))  (singularity measure)
+  - Workspace region analysis: 9 regions (inner/middle/outer x low/mid/high)
+  - Error vs distance correlation
+
+7.3 Error Computation
+----------------------
+  T_solved = FK(DH, theta_solved)
+  pos_error = ||p_target - p_solved||_2          (meters)
+  rot_error = magnitude(R_target^T * R_solved)   (radians, via scipy Rotation)
+
+
+================================================================================
+8. STATISTICAL ANALYSIS
+================================================================================
+
+Function: generate_comparison_report(analytical_data, numerical_data)
+
+8.1 Descriptive Statistics (per metric)
+----------------------------------------
+  N, Mean, Std Dev, Median, Min, Max,
+  25th percentile (Q1), 75th percentile (Q3),
+  95th percentile, 99th percentile,
+  IQR = Q3 - Q1
+
+8.2 Hypothesis Tests
+---------------------
+  Welch's t-test (unequal variance):
+    t = (mean_a - mean_n) / sqrt(s_a^2/n_a + s_n^2/n_n)
+    Tests if means differ significantly
+
+  Mann-Whitney U test:
+    Non-parametric rank-based test
+    Tests if distributions differ significantly
+
+8.3 Effect Size
+----------------
+  Cohen's d = (mean_a - mean_n) / pooled_std
+  pooled_std = sqrt(((n1-1)*s1^2 + (n2-1)*s2^2) / (n1+n2-2))
+
+  Interpretation:
+    |d| < 0.2:  negligible
+    0.2-0.5:    small
+    0.5-0.8:    medium
+    > 0.8:      large
+
+8.4 Significance Levels
+-------------------------
+  p < 0.001:  *** (highly significant)
+  p < 0.01:   **  (very significant)
+  p < 0.05:   *   (significant)
+  p >= 0.05:  ns  (not significant)
+
+8.5 Report Sections
+---------------------
+  1. Sample Overview (total, valid, failed)
+  2. Position Error Analysis
+  3. Rotation Error Analysis
+  4. Computation Time Analysis (with speedup factor)
+  5. Memory & CPU Resource Usage
+  6. Statistical Tests Summary Table
+  7. Conclusions (category winners, overall winner)
+
+
+================================================================================
+9. TARGET GENERATION
+================================================================================
+
+Function: generate_fk_targets(n_points)
+
+Algorithm:
+  1. Sample random joint angles: theta_i ~ U[q_min_i, q_max_i]
+  2. Compute FK for each sample: T_i = fk_chain(DH, thetas_i)
+  3. Store as array of 4x4 transformation matrices
+
+This guarantees all targets are reachable by construction (generated via FK).
+
+Default joint ranges for generation:
+  theta1: [-pi/2, pi/2]
+  theta2: [-pi/4, pi/4]
+  theta3: [-pi/2, pi/2]
+  theta4: [-pi/2, pi/2]
+  theta5: [-pi/2, pi/2]
+  theta6: [-pi/2, pi/2]
+
+
+================================================================================
+10. TRAJECTORY SIMULATION
+================================================================================
+
+Class: TrajectorySimulator
+
+  - Maintains current robot state (joint angles for both solvers)
+  - Generates random reachable targets near current position
+  - Linear joint-space interpolation between configurations
+  - Default 15 interpolation steps per movement
+  - Workspace limits: x,y in [-0.8, 0.8] m, z in [0.1, 1.2] m
+
+
+================================================================================
+11. WEB VISUALIZATION SERVER
+================================================================================
+
+Flask server on http://localhost:5001
+
+API Endpoints:
+  GET  /api/targets              All target positions with errors
+  GET  /api/stats                Workspace bounds, solver statistics
+  GET  /api/robot/<idx>          Robot arm pose for specific target
+  GET  /api/error_histogram      Error distribution (log-scale bins)
+  GET  /api/sim/state            Current simulation state
+  POST /api/sim/add_target       Generate and solve new target
+  GET  /api/sim/trajectory/<idx> Interpolated movement trajectory
+  POST /api/sim/reset            Reset simulation
+
+Features:
+  - 3D point cloud of target positions color-coded by error
+  - Interactive robot arm visualization
+  - Error distribution histograms
+  - Real-time trajectory simulation with both solvers
+
+
+================================================================================
+12. KEY CONSTANTS AND THRESHOLDS
+================================================================================
+
+Parameter                  | Value     | Unit
+---------------------------|-----------|--------
+Position error threshold   | 1e-3      | m (1 mm)
+Rotation error threshold   | 1e-2      | rad (~0.57 deg)
+Number of joints           | 6         | -
+Maximum reach              | 5.00      | m
+Numerical max iterations   | 300       | -
+Numerical convergence tol  | 1e-6      | -
+Numerical restarts         | 3         | -
+DLS damping range          | [1e-6, 10]| -
+DLS step size range        | [0.1, 1.5]| -
+Stall threshold            | 20        | iterations
+Benchmark batch size       | 1000      | targets
+Web display limit          | 5000      | targets
+Trajectory interp steps    | 15        | steps
+
+
+================================================================================
+13. SUGGESTED LAB REPORT STRUCTURE
+================================================================================
+
+THEORY:
+  - Forward kinematics and DH convention (Section 3, 4)
+  - Analytical IK: geometric decomposition approach (Section 5)
+  - Numerical IK: Jacobian-based iterative methods (Section 6)
+  - Error metrics: position (Euclidean), rotation (axis-angle) (Section 7.1)
+
+METHOD:
+  - Robot model and DH parameters (Section 3)
+  - Analytical solver implementation (Section 5)
+  - Numerical solver implementation (Section 6)
+  - Target generation via FK (Section 9)
+  - Benchmark setup: 5 metrics, batch processing (Section 7)
+  - Statistical comparison: t-test, Mann-Whitney U, Cohen's d (Section 8)
+
+RESULTS:
+  - Accuracy: position and rotation error distributions
+  - Speed: computation time comparison and speedup factor
+  - Resources: memory usage and CPU utilization
+  - Statistical significance of differences
+  - Overall solver comparison
+
+DISCUSSION:
+  - Why analytical solver achieves machine-precision accuracy
+  - Numerical solver convergence behavior and failure modes
+  - Trade-offs: accuracy vs robustness vs generalizability
+  - Effect of workspace region on solver performance
+  - Limitations of the benchmarking approach
+
+================================================================================
