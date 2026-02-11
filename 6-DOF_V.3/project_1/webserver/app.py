@@ -22,7 +22,7 @@ app = Flask(__name__)
 # Global storage
 _data = None
 _simulator = TrajectorySimulator(interpolation_steps=15)
-_results_path = os.path.join(PROJECT_DIR, "data", "solver_results_100k.npy")
+_results_path = os.path.join(PROJECT_DIR, "data", "solver_results_1k.npy")
 _target_path = os.path.join(PROJECT_DIR, "data", "target_archive.npy")
 
 
@@ -312,5 +312,5 @@ if __name__ == '__main__':
         print(f"Total targets: {_data.get('total_count', count)}")
 
     print("\nStarting web server...")
-    print("Open http://localhost:5000 in your browser")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Open http://localhost:5001 in your browser")
+    app.run(debug=True, host='0.0.0.0', port=5001)
