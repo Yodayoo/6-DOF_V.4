@@ -260,6 +260,7 @@ def measure_batch_performance(solver_func, targets, batch_size=100, save_path=No
 
             try:
                 t0 = time.time()
+                cpu0 = time.process_time()
 
                 # Use detailed solver for numerical if requested
                 if solver_type == "numerical" and detailed_numerical:
@@ -275,12 +276,15 @@ def measure_batch_performance(solver_func, targets, batch_size=100, save_path=No
                         manipulability[idx] = compute_manipulability(DH, Theta_solved)
 
                 elapsed = time.time() - t0
+                cpu_elapsed = time.process_time() - cpu0
+                cpu_pct = 100 * cpu_elapsed / elapsed if elapsed > 0 else 0
 
                 if Theta_solved is None:
                     results[idx, :] = [np.nan, np.nan, elapsed, np.nan, np.nan]
                 else:
                     pos_err, rot_err = compute_error(Theta_solved, pt)
                     results[idx, :3] = [pos_err, rot_err, elapsed]
+                    results[idx, 4] = cpu_pct
                     thetas[idx, :] = Theta_solved
 
                     # Check success criteria
@@ -307,7 +311,6 @@ def measure_batch_performance(solver_func, targets, batch_size=100, save_path=No
         mem_delta = mem_after - mem_before
 
         results[i:i + len(batch), 3] = mem_delta
-        results[i:i + len(batch), 4] = cpu_percent
 
         # Track computing power metrics
         current_freq = measure_cpu_frequency()
