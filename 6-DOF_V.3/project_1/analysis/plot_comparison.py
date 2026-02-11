@@ -66,6 +66,12 @@ def plot_error_histograms(data, save=True):
     ax1.axvline(np.mean(a_pos), color=ANALYTICAL_COLOR, linestyle='--', linewidth=2)
     ax1.axvline(np.mean(n_pos), color=NUMERICAL_COLOR, linestyle='--', linewidth=2)
 
+    a_pos_iqr = np.percentile(a_pos, 75) - np.percentile(a_pos, 25)
+    n_pos_iqr = np.percentile(n_pos, 75) - np.percentile(n_pos, 25)
+    ax1.text(0.02, 0.95, f'IQR Analytical: {a_pos_iqr:.2e}\nIQR Numerical: {n_pos_iqr:.2e}',
+             transform=ax1.transAxes, fontsize=9, verticalalignment='top',
+             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+
     # Rotation Error
     ax2 = axes[1]
     a_rot = data["analytical"]["rot_error"]
@@ -88,6 +94,12 @@ def plot_error_histograms(data, save=True):
 
     ax2.axvline(np.mean(a_rot), color=ANALYTICAL_COLOR, linestyle='--', linewidth=2)
     ax2.axvline(np.mean(n_rot), color=NUMERICAL_COLOR, linestyle='--', linewidth=2)
+
+    a_rot_iqr = np.percentile(a_rot, 75) - np.percentile(a_rot, 25)
+    n_rot_iqr = np.percentile(n_rot, 75) - np.percentile(n_rot, 25)
+    ax2.text(0.02, 0.95, f'IQR Analytical: {a_rot_iqr:.2e}\nIQR Numerical: {n_rot_iqr:.2e}',
+             transform=ax2.transAxes, fontsize=9, verticalalignment='top',
+             bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
 
     plt.tight_layout()
 
@@ -135,10 +147,14 @@ def plot_time_comparison(data, save=True):
     ax2.set_title('Computation Time Box Plot', fontsize=14, fontweight='bold')
     ax2.grid(True, alpha=0.3, axis='y')
 
-    ax2.annotate(f'Mean: {np.mean(a_time)*1000:.2f}ms', xy=(1, np.mean(a_time)),
-                 xytext=(1.3, np.mean(a_time)), fontsize=10, color=ANALYTICAL_COLOR)
-    ax2.annotate(f'Mean: {np.mean(n_time)*1000:.2f}ms', xy=(2, np.mean(n_time)),
-                 xytext=(2.1, np.mean(n_time)), fontsize=10, color=NUMERICAL_COLOR)
+    a_time_iqr = (np.percentile(a_time, 75) - np.percentile(a_time, 25)) * 1000
+    n_time_iqr = (np.percentile(n_time, 75) - np.percentile(n_time, 25)) * 1000
+    ax2.annotate(f'Mean: {np.mean(a_time)*1000:.2f}ms\nIQR: {a_time_iqr:.2f}ms',
+                 xy=(1, np.mean(a_time)), xytext=(1.3, np.mean(a_time)),
+                 fontsize=10, color=ANALYTICAL_COLOR)
+    ax2.annotate(f'Mean: {np.mean(n_time)*1000:.2f}ms\nIQR: {n_time_iqr:.2f}ms',
+                 xy=(2, np.mean(n_time)), xytext=(2.1, np.mean(n_time)),
+                 fontsize=10, color=NUMERICAL_COLOR)
 
     plt.tight_layout()
 
@@ -173,10 +189,14 @@ def plot_resource_usage(data, save=True):
     ax1.set_title('Memory Usage per Batch', fontsize=14, fontweight='bold')
     ax1.grid(True, alpha=0.3, axis='y')
 
-    ax1.annotate(f'Mean: {np.mean(a_mem):.2f} MB', xy=(1, np.mean(a_mem)),
-                 xytext=(1.3, np.mean(a_mem)), fontsize=10, color=ANALYTICAL_COLOR)
-    ax1.annotate(f'Mean: {np.mean(n_mem):.2f} MB', xy=(2, np.mean(n_mem)),
-                 xytext=(2.1, np.mean(n_mem)), fontsize=10, color=NUMERICAL_COLOR)
+    a_mem_iqr = np.percentile(a_mem, 75) - np.percentile(a_mem, 25)
+    n_mem_iqr = np.percentile(n_mem, 75) - np.percentile(n_mem, 25)
+    ax1.annotate(f'Mean: {np.mean(a_mem):.2f} MB\nIQR: {a_mem_iqr:.2f} MB',
+                 xy=(1, np.mean(a_mem)), xytext=(1.3, np.mean(a_mem)),
+                 fontsize=10, color=ANALYTICAL_COLOR)
+    ax1.annotate(f'Mean: {np.mean(n_mem):.2f} MB\nIQR: {n_mem_iqr:.2f} MB',
+                 xy=(2, np.mean(n_mem)), xytext=(2.1, np.mean(n_mem)),
+                 fontsize=10, color=NUMERICAL_COLOR)
 
     # CPU Usage
     ax2 = axes[1]
@@ -196,10 +216,14 @@ def plot_resource_usage(data, save=True):
     ax2.set_title('CPU Usage per Batch', fontsize=14, fontweight='bold')
     ax2.grid(True, alpha=0.3, axis='y')
 
-    ax2.annotate(f'Mean: {np.mean(a_cpu):.1f}%', xy=(1, np.mean(a_cpu)),
-                 xytext=(1.3, np.mean(a_cpu)), fontsize=10, color=ANALYTICAL_COLOR)
-    ax2.annotate(f'Mean: {np.mean(n_cpu):.1f}%', xy=(2, np.mean(n_cpu)),
-                 xytext=(2.1, np.mean(n_cpu)), fontsize=10, color=NUMERICAL_COLOR)
+    a_cpu_iqr = np.percentile(a_cpu, 75) - np.percentile(a_cpu, 25)
+    n_cpu_iqr = np.percentile(n_cpu, 75) - np.percentile(n_cpu, 25)
+    ax2.annotate(f'Mean: {np.mean(a_cpu):.1f}%\nIQR: {a_cpu_iqr:.1f}%',
+                 xy=(1, np.mean(a_cpu)), xytext=(1.3, np.mean(a_cpu)),
+                 fontsize=10, color=ANALYTICAL_COLOR)
+    ax2.annotate(f'Mean: {np.mean(n_cpu):.1f}%\nIQR: {n_cpu_iqr:.1f}%',
+                 xy=(2, np.mean(n_cpu)), xytext=(2.1, np.mean(n_cpu)),
+                 fontsize=10, color=NUMERICAL_COLOR)
 
     plt.tight_layout()
 
@@ -219,39 +243,45 @@ def plot_summary_dashboard(data, save=True):
     ax1 = axes[0, 0]
     a_pos = np.mean(data["analytical"]["pos_error"])
     n_pos = np.mean(data["numerical"]["pos_error"])
+    a_pos_iqr = np.percentile(data["analytical"]["pos_error"], 75) - np.percentile(data["analytical"]["pos_error"], 25)
+    n_pos_iqr = np.percentile(data["numerical"]["pos_error"], 75) - np.percentile(data["numerical"]["pos_error"], 25)
     bars = ax1.bar(['Analytical', 'Numerical'], [a_pos, n_pos],
                    color=[ANALYTICAL_COLOR, NUMERICAL_COLOR], alpha=0.8)
     ax1.set_ylabel('Position Error (m)')
     ax1.set_title('Mean Position Error', fontweight='bold')
     ax1.set_yscale('log')
-    for bar, val in zip(bars, [a_pos, n_pos]):
-        ax1.annotate(f'{val:.2e}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
-                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=9)
+    for bar, val, iqr in zip(bars, [a_pos, n_pos], [a_pos_iqr, n_pos_iqr]):
+        ax1.annotate(f'{val:.2e}\nIQR:{iqr:.2e}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=8)
 
     # 2. Mean Rotation Error
     ax2 = axes[0, 1]
     a_rot = np.mean(data["analytical"]["rot_error"])
     n_rot = np.mean(data["numerical"]["rot_error"])
+    a_rot_iqr = np.percentile(data["analytical"]["rot_error"], 75) - np.percentile(data["analytical"]["rot_error"], 25)
+    n_rot_iqr = np.percentile(data["numerical"]["rot_error"], 75) - np.percentile(data["numerical"]["rot_error"], 25)
     bars = ax2.bar(['Analytical', 'Numerical'], [a_rot, n_rot],
                    color=[ANALYTICAL_COLOR, NUMERICAL_COLOR], alpha=0.8)
     ax2.set_ylabel('Rotation Error (rad)')
     ax2.set_title('Mean Rotation Error', fontweight='bold')
     ax2.set_yscale('log')
-    for bar, val in zip(bars, [a_rot, n_rot]):
-        ax2.annotate(f'{val:.2e}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
-                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=9)
+    for bar, val, iqr in zip(bars, [a_rot, n_rot], [a_rot_iqr, n_rot_iqr]):
+        ax2.annotate(f'{val:.2e}\nIQR:{iqr:.2e}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=8)
 
     # 3. Mean Computation Time
     ax3 = axes[0, 2]
     a_time = np.mean(data["analytical"]["time"]) * 1000
     n_time = np.mean(data["numerical"]["time"]) * 1000
+    a_time_iqr = (np.percentile(data["analytical"]["time"], 75) - np.percentile(data["analytical"]["time"], 25)) * 1000
+    n_time_iqr = (np.percentile(data["numerical"]["time"], 75) - np.percentile(data["numerical"]["time"], 25)) * 1000
     bars = ax3.bar(['Analytical', 'Numerical'], [a_time, n_time],
                    color=[ANALYTICAL_COLOR, NUMERICAL_COLOR], alpha=0.8)
     ax3.set_ylabel('Mean Time (ms)')
     ax3.set_title('Computation Time', fontweight='bold')
-    for bar, val in zip(bars, [a_time, n_time]):
-        ax3.annotate(f'{val:.2f}ms', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
-                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=9)
+    for bar, val, iqr in zip(bars, [a_time, n_time], [a_time_iqr, n_time_iqr]):
+        ax3.annotate(f'{val:.2f}ms\nIQR:{iqr:.2f}ms', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=8)
 
     # 4. Position Error Distribution
     ax4 = axes[1, 0]
@@ -276,13 +306,15 @@ def plot_summary_dashboard(data, save=True):
     n_mem = n_mem[~np.isnan(n_mem)]
     a_mean_mem = np.mean(a_mem)
     n_mean_mem = np.mean(n_mem)
+    a_mem_iqr = np.percentile(a_mem, 75) - np.percentile(a_mem, 25)
+    n_mem_iqr = np.percentile(n_mem, 75) - np.percentile(n_mem, 25)
     bars = ax5.bar(['Analytical', 'Numerical'], [a_mean_mem, n_mean_mem],
                    color=[ANALYTICAL_COLOR, NUMERICAL_COLOR], alpha=0.8)
     ax5.set_ylabel('Memory Delta (MB)')
     ax5.set_title('Mean Memory Usage', fontweight='bold')
-    for bar, val in zip(bars, [a_mean_mem, n_mean_mem]):
-        ax5.annotate(f'{val:.2f} MB', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
-                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=9)
+    for bar, val, iqr in zip(bars, [a_mean_mem, n_mean_mem], [a_mem_iqr, n_mem_iqr]):
+        ax5.annotate(f'{val:.2f} MB\nIQR:{iqr:.2f}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=8)
 
     # 6. CPU Usage
     ax6 = axes[1, 2]
@@ -292,13 +324,15 @@ def plot_summary_dashboard(data, save=True):
     n_cpu = n_cpu[~np.isnan(n_cpu)]
     a_mean_cpu = np.mean(a_cpu)
     n_mean_cpu = np.mean(n_cpu)
+    a_cpu_iqr = np.percentile(a_cpu, 75) - np.percentile(a_cpu, 25)
+    n_cpu_iqr = np.percentile(n_cpu, 75) - np.percentile(n_cpu, 25)
     bars = ax6.bar(['Analytical', 'Numerical'], [a_mean_cpu, n_mean_cpu],
                    color=[ANALYTICAL_COLOR, NUMERICAL_COLOR], alpha=0.8)
     ax6.set_ylabel('CPU Utilization (%)')
     ax6.set_title('Mean CPU Usage', fontweight='bold')
-    for bar, val in zip(bars, [a_mean_cpu, n_mean_cpu]):
-        ax6.annotate(f'{val:.1f}%', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
-                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=9)
+    for bar, val, iqr in zip(bars, [a_mean_cpu, n_mean_cpu], [a_cpu_iqr, n_cpu_iqr]):
+        ax6.annotate(f'{val:.1f}%\nIQR:{iqr:.1f}%', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+                     xytext=(0, 5), textcoords='offset points', ha='center', fontweight='bold', fontsize=8)
 
     fig.suptitle('IK Solver Comparison Dashboard', fontsize=16, fontweight='bold', y=1.02)
 
