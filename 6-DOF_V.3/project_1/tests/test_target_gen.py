@@ -1,14 +1,22 @@
 import numpy as np
-from target_gen.generate_targets import generate_transformation_matrices, max_r , z_offset
+import sys, os
 
-def test_target_gen():
-    
-    matrices = generate_transformation_matrices(n_points=100_000, max_radius=5 , offset=np.array([0.0, 0.0, z_offset]))
-    assert len(matrices) == 100_000
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
 
-    for i, T in enumerate(matrices):
-        pos = T[:3, 3]         # Extract position
-        r = np.linalg.norm(pos) - z_offset        # Euclidean distance from origin
-        assert 0 <= r <= max_r, f"Target out of reach: r={r}, max_r={max_r} , {pos}"
-    
-print("Target_generation-test passed")
+from target_gen.generate_targets import generate_fk_targets
+
+
+def test_target_gen(tmp_path):
+    save_path = tmp_path / "targets.npy"
+    matrices = generate_fk_targets(
+        n_points=1000,
+        joint_limits=[(-np.pi/2, np.pi/2)] * 6,
+        save_path=str(save_path),
+    )
+    assert matrices.shape == (1000, 4, 4)
+    # Each matrix must be a valid homogeneous transform
+    for T in matrices:
+        assert np.allclose(T[3], [0, 0, 0, 1])
+        R = T[:3, :3]
+        assert np.allclose(R @ R.T, np.eye(3), atol=1e-8)

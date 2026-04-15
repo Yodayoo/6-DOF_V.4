@@ -11,6 +11,8 @@ def combine_benchmarks(base_pattern, output_path):
         output_path (str): e.g. "data/analytical_results_combined.npy"
     """
     files = sorted(glob.glob(base_pattern), key=os.path.getmtime)
+    # Exclude any previous combined output to prevent double-counting on re-runs
+    files = [f for f in files if "combined" not in os.path.basename(f)]
     if not files:
         print(f"⚠️ No files found matching pattern: {base_pattern}")
         return

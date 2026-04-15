@@ -33,20 +33,20 @@ def measure_batch_performance(solver_func, targets, batch_size=100, save_path=No
         # --- CPU & memory start snapshot ---
         cpu_start = process.cpu_times()
         wall_start = time.time()
-        mem_before = process.memory_info().rss / (1024**2)  # MB
 
         for j, pt in enumerate(batch):
             try:
+                mem_before = process.memory_info().rss / (1024**2)  # MB
                 t0 = time.time()
                 Theta_solved = solver_func(pt)
                 elapsed = time.time() - t0
+                mem_after = process.memory_info().rss / (1024**2)
 
                 if Theta_solved is None:
                     results[i + j, :] = [np.nan, np.nan, elapsed, np.nan, np.nan]
                 else:
                     pos_err, rot_err = compute_error(Theta_solved, pt)
-                    mem_now = process.memory_info().rss / (1024**2)
-                    results[i + j, :4] = [pos_err, rot_err, elapsed, mem_now - mem_before]
+                    results[i + j, :4] = [pos_err, rot_err, elapsed, mem_after - mem_before]
                     thetas[i + j, :] = Theta_solved
             except Exception as e:
                 print(f"Error processing target {i + j}: {e}")
